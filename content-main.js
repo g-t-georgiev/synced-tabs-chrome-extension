@@ -25,12 +25,10 @@ export function main() {
   let syncedKeyTarget = null;
   let ghostCursorTimeout = null;
 
-  const config = { ...DEFAULT_CONFIG };
-  // Test store
-  const test = createStore({ ...DEFAULT_CONFIG });
+  const config = createStore({ ...DEFAULT_CONFIG });
 
   // UI Elements
-  const { panel, badge, state } = createControlPanel();
+  const ui = window.top === window ? createControlPanel({ windowId: WINDOW_ID, config }) : null;
   const ghostCursor = createGhostCursor();
 
   console.log(`%c[SYNC INITIALIZED]%c Window ID [${WINDOW_ID.slice(0, 8)}] URL: ${window.location.href}`, "color: #00ff00; font-weight: bold;", "color: default;");
@@ -39,7 +37,7 @@ export function main() {
   // 1. CAPTURE & BROADCAST MOUSE/POINTER CLICKS
   [`${pointerPrefix}down`, `${pointerPrefix}up`, "click"].forEach((type) => {
     window.addEventListener(type, (event) => {
-      if (!event.isTrusted || !state.syncMouse) return;
+      if (!event.isTrusted || !config.state.syncMouse) return;
 
       const ratio = pointToRatio(event.clientX, event.clientY);
 
@@ -72,7 +70,7 @@ export function main() {
   );
 
   window.addEventListener(`${pointerPrefix}move`, (event) => {
-    if (!event.isTrusted || !state.syncCursor) return;
+    if (!event.isTrusted || !config.state.syncCursor) return;
     const ratio = pointToRatio(event.clientX, event.clientY);
     broadcastCursor(ratio.x, ratio.y);
   }, { capture: true, passive: true });
@@ -80,7 +78,7 @@ export function main() {
   // 3. CAPTURE & BROADCAST KEYBOARD EVENTS
   ["keydown", "keypress", "keyup"].forEach((type) => {
     window.addEventListener(type, (event) => {
-      if (!event.isTrusted || !state.syncKeyboard) return;
+      if (!event.isTrusted || !config.state.syncKeyboard) return;
 
       const originTarget = event.target || document.activeElement || document.body;
       const rect = originTarget.getBoundingClientRect ? originTarget.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
@@ -126,7 +124,7 @@ export function main() {
   );
 
   window.addEventListener("scroll", (event) => {
-    if (!event.isTrusted || !state.syncScroll) return;
+    if (!event.isTrusted || !config.state.syncScroll) return;
     broadcastScroll(event.target);
   }, true); // capture: true so nested scroll containers are included
 
@@ -136,7 +134,7 @@ export function main() {
     if (message.originWindowId === WINDOW_ID) return;
 
     // Isolate POINTER_MOVE from the heavy UI pulse & logging to save performance
-    if (message.type === MESSAGE_TYPES.POINTER_MOVE && state.syncCursor) {
+    if (message.type === MESSAGE_TYPES.POINTER_MOVE && config.state.syncCursor) {
       const point = ratioToPoint(message.xRatio, message.yRatio);
 
       // Render Ghost Cursor
@@ -151,13 +149,13 @@ export function main() {
       return;
     }
 
-    updateStatus(badge);
+    updateStatus(ui?.badge);
 
     console.log(`%c[REMOTE EVENT RECEIVED]%c ${message.type} -> ${message.subType || ""}`, "color: #00ffff; font-weight: bold;", "color: default;", message);
 
     // A. EXECUTE POINTER / CLICK
-    if ((message.type === MESSAGE_TYPES.POINTER_EVENT) && state.syncMouse) {
-      pulseUI(panel);
+    if ((message.type === MESSAGE_TYPES.POINTER_EVENT) && config.state.syncMouse) {
+      pulseUI(ui?.panel);
 
       const point = ratioToPoint(message.xRatio, message.yRatio);
       const element = elementAt(point.x, point.y, document.body);
@@ -166,8 +164,8 @@ export function main() {
       dispatchSyntheticPointerEvent(element, point.x, point.y, message.subType);
     }
     // B. EXECUTE KEYBOARD EVENT
-    else if (message.type === MESSAGE_TYPES.KEY_EVENT && state.syncKeyboard) {
-      pulseUI(panel);
+    else if (message.type === MESSAGE_TYPES.KEY_EVENT && config.state.syncKeyboard) {
+      pulseUI(ui?.panel);
 
       if (message.subType === "keydown" || !syncedKeyTarget) {
         const point = ratioToPoint(message.xRatio, message.yRatio);
@@ -188,8 +186,8 @@ export function main() {
       }
     }
     // C. EXECUTE SCROLL EVENT
-    else if (message.type === MESSAGE_TYPES.SCROLL_EVENT && state.syncScroll) {
-      pulseUI(panel);
+    else if (message.type === MESSAGE_TYPES.SCROLL_EVENT && config.state.syncScroll) {
+      pulseUI(ui?.panel);
 
       let target;
       if (message.isDocument) {
@@ -211,7 +209,9 @@ export function main() {
   });
 
   // Helpers
+  /** @param {HTMLElement} badge */
   function updateStatus(badge) {
+    if (!badge) return;
     // Flash badge blue when receiving remote event
     badge.style.setProperty("background", "cyan");
     badge.style.setProperty("color", "#000");
@@ -222,9 +222,13 @@ export function main() {
     }, 200);
   }
 
-  function createControlPanel() {
-    // Initialize variables
-    let panel = null,
+  /**
+   * @param {object} options
+   * @param {string} options.windowId
+   * @param {typeof config} options.config
+   */
+  function createControlPanel({ windowId, config }) {
+    let host = null,
       mouseToggle = null,
       scrollToggle = null,
       keyToggle = null,
@@ -239,33 +243,14 @@ export function main() {
       grabInsetTop = 0,
       grabInsetLeft = 0;
 
-    const keys = Object.keys(config);
-    // 1. INITIALIZE & LISTEN TO PERSISTED STORAGE SETTINGS
-    chrome.storage.local.get(keys, (res) => {
-      keys.forEach((key) => {
-        config[key] = res[key] ?? DEFAULT_CONFIG[key];
-      });
+    // BUILD IN-PAGE CONTROL PANEL
+    host = document.createElement("div");
+    host.id = "mirror-sync-panel";
+    const shadow = host.attachShadow({ mode: "open" });
 
-      updateUIControls();
-    });
-
-    chrome.storage.onChanged.addListener((changes) => {
-      keys.forEach((key) => {
-        const change = changes[key];
-        if (!change) return;
-        config[key] = change.newValue;
-      });
-
-      updateUIControls();
-    });
-
-    // 2. BUILD IN-PAGE CONTROL PANEL
-    panel = document.createElement("div");
-    panel.id = "mirror-sync-panel";
-
-    panel.innerHTML = `
+    shadow.innerHTML = `
       <style>
-        #mirror-sync-panel {
+        :host {
           position: fixed;
           top: 10px;
           right: 10px;
@@ -285,8 +270,12 @@ export function main() {
           user-select: none;
           min-width: 150px;
         }
+        :host(.receiving) {
+          border-color: #00ffff;
+          box-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
+        }
         
-        #mirror-sync-panel .drag-handle {
+        .drag-handle {
           display: block;
           position: absolute;
           top: 0;
@@ -298,11 +287,13 @@ export function main() {
           background: #fff;
           cursor: grab;
         }
-        #mirror-sync-panel .header {
+
+        .header {
           padding-bottom: 6px;
           border-bottom: 1px solid #262626;
         }
-        #mirror-sync-panel .badge {
+
+        .badge {
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -313,42 +304,44 @@ export function main() {
           border-radius: 4px;
           opacity: 0.8;
         }
-        #mirror-sync-panel .badge small {
+        .badge small {
           font-size: 10px;
         }
-        #mirror-sync-panel .row {
+
+        .row {
           display: flex;
           justify-content: space-between;
           align-items: center;
           gap: 8px;
         }
-        #mirror-sync-panel label {
+
+        label {
           cursor: pointer;
           display: flex;
           align-items: center;
           gap: 6px;
         }
           
-        #mirror-sync-panel input[type="checkbox"] {
+        input[type="checkbox"] {
           cursor: pointer;
           accent-color: #4cd964;
         }
 
-        #mirror-sync-panel .toggle-switch {
+        .toggle-switch {
           position: relative;
           display: inline-block;
           width: 32px;
           height: 18px;
           pointer-events: all;
         }
-        #mirror-sync-panel .toggle-switch input[type="checkbox"] {
+        .toggle-switch input[type="checkbox"] {
           appearance: none;
           display: none;
           opacity: 0;
           width: 0;
           height: 0;
         }
-        #mirror-sync-panel .toggle-switch-slider {
+        .toggle-switch-slider {
           position: absolute;
           cursor: pointer;
           top: 0;
@@ -361,7 +354,7 @@ export function main() {
           transition: .4s;
         }
 
-        #mirror-sync-panel .toggle-switch-slider::before {
+        .toggle-switch-slider::before {
           position: absolute;
           content: "";
           height: 14px;
@@ -374,23 +367,18 @@ export function main() {
           transition: .4s;
         }
 
-        #mirror-sync-panel .toggle-switch input[type="checkbox"]:checked + .toggle-switch-slider {
+        .toggle-switch input[type="checkbox"]:checked + .toggle-switch-slider {
           background-color: #2196F3;
         }
 
-        #mirror-sync-panel .toggle-switch input[type="checkbox"]:focus + .toggle-switch-slider {
+        .toggle-switch input[type="checkbox"]:focus + .toggle-switch-slider {
           box-shadow: 0 0 1px #2196F3;
         }
 
-        #mirror-sync-panel .toggle-switch input[type="checkbox"]:checked + .toggle-switch-slider::before {
+        .toggle-switch input[type="checkbox"]:checked + .toggle-switch-slider::before {
           -webkit-transform: translateX(12px);
           -ms-transform: translateX(12px);
           transform: translateX(12px);
-        }
-
-        #mirror-sync-panel.receiving {
-          border-color: #00ffff;
-          box-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
         }
       </style>
 
@@ -399,14 +387,14 @@ export function main() {
       <div class="header">
         <div class="badge" id="sync-extension-badge">
           <span>SYNC ACTIVE</span>
-          <small>[${WINDOW_ID.slice(0, 4)}]</small>
+          <small>[${windowId.slice(0, 4)}]</small>
         </div>
       </div>
 
       <div class="row">
         <span>Ghost Cursor</span>
         <label class="toggle-switch">
-          <input type="checkbox" id="sync-cursor-toggle_${WINDOW_ID}" ${config.syncCursor ? "checked" : ""}>
+          <input type="checkbox" id="sync-cursor-toggle_${windowId}" ${config.state.syncCursor ? "checked" : ""}>
           <span class="toggle-switch-slider"></span>
         </label>
       </div>
@@ -414,59 +402,56 @@ export function main() {
       <div class="row">
         <span>Mouse Events</span>
         <label class="toggle-switch">
-          <input type="checkbox" id="sync-mouse-toggle_${WINDOW_ID}" ${config.syncMouse ? "checked" : ""}>
+          <input type="checkbox" id="sync-mouse-toggle_${windowId}" ${config.state.syncMouse ? "checked" : ""}>
           <span class="toggle-switch-slider"></span>
         </label>
       </div>
       <div class="row">
         <span>Scroll Events</span>
         <label class="toggle-switch">
-          <input type="checkbox" id="sync-scroll-toggle_${WINDOW_ID}" ${config.syncScroll ? "checked" : ""}>
+          <input type="checkbox" id="sync-scroll-toggle_${windowId}" ${config.state.syncScroll ? "checked" : ""}>
           <span class="toggle-switch-slider"></span>
         </label>
       </div>
       <div class="row">
         <span>Keyboard Events</span>
         <label class="toggle-switch">
-          <input type="checkbox" id="sync-key-toggle_${WINDOW_ID}" ${config.syncKeyboard ? "checked" : ""}>
+          <input type="checkbox" id="sync-key-toggle_${windowId}" ${config.state.syncKeyboard ? "checked" : ""}>
           <span class="toggle-switch-slider"></span>
         </label>
       </div>
     `;
 
     // Bind checkbox handlers to update chrome.storage
-    mouseToggle = panel.querySelector("[id^=\"sync-mouse-toggle\"]");
-    scrollToggle = panel.querySelector("[id^=\"sync-scroll-toggle\"]");
-    keyToggle = panel.querySelector("[id^=\"sync-key-toggle\"]");
-    cursorToggle = panel.querySelector("[id^=\"sync-cursor-toggle\"]");
+    mouseToggle = shadow.querySelector("[id^=\"sync-mouse-toggle\"]");
+    scrollToggle = shadow.querySelector("[id^=\"sync-scroll-toggle\"]");
+    keyToggle = shadow.querySelector("[id^=\"sync-key-toggle\"]");
+    cursorToggle = shadow.querySelector("[id^=\"sync-cursor-toggle\"]");
+    badge = shadow.querySelector("#sync-extension-badge");
+    grabHandle = shadow.querySelector(".drag-handle");
 
-    badge = panel.querySelector("#sync-extension-badge");
-
-    grabHandle = panel.querySelector(".drag-handle");
-
+    config.subscribe(updateUIControls);
+    
     // Attach to DOM tree and initialize
-    if (document.body) {
-      document.body.append(panel);
-
-      init();
-    } else window.addEventListener("DOMContentLoaded", () => {
-      document.body.append(panel);
-
-      init();
-    });
+    if (document.body) init();
+    else window.addEventListener("DOMContentLoaded", () => init(), { once: true });
 
     function init() {
+      document.body.append(host);
+  
       // Handle localStorage changes
       mouseToggle.addEventListener("change", (ev) => {
-        chrome.storage.local.set({ syncMouse: ev.target.checked });
+        config.set("syncMouse", ev.target.checked);
       });
       scrollToggle.addEventListener("change", (ev) => {
-        chrome.storage.local.set({ syncScroll: ev.target.checked });
+        config.set("syncScroll", ev.target.checked);
       });
       keyToggle.addEventListener("change", (ev) => {
-        chrome.storage.local.set({ syncKeyboard: ev.target.checked });
+        config.set("syncKeyboard", ev.target.checked);
       });
-      cursorToggle.addEventListener("change", (ev) => chrome.storage.local.set({ syncCursor: ev.target.checked }));
+      cursorToggle.addEventListener("change", (ev) => {
+        config.set("syncCursor", ev.target.checked);
+      });
 
       // Init dragging logic
       grabHandle.addEventListener("pointerdown", (ev) => {
@@ -474,12 +459,12 @@ export function main() {
 
         dragging = true;
 
-        if (ev.pointerId) panel.setPointerCapture(ev.pointerId);
+        if (ev.pointerId) host.setPointerCapture(ev.pointerId);
 
         grabHandle.style.setProperty("cursor", "grabbing");
 
         // get bounding rects
-        panelBounds = panel.getBoundingClientRect();
+        panelBounds = host.getBoundingClientRect();
         grabHandleBounds = grabHandle.getBoundingClientRect();
 
         // click point within the handle
@@ -498,10 +483,10 @@ export function main() {
 
     // Handle updating UI state
     function updateUIControls() {
-      if (mouseToggle) mouseToggle.checked = config.syncMouse;
-      if (keyToggle) keyToggle.checked = config.syncKeyboard;
-      if (scrollToggle) scrollToggle.checked = config.syncScroll;
-      if (cursorToggle) cursorToggle.checked = config.syncCursor;
+      if (mouseToggle) mouseToggle.checked = config.state.syncMouse;
+      if (keyToggle) keyToggle.checked = config.state.syncKeyboard;
+      if (scrollToggle) scrollToggle.checked = config.state.syncScroll;
+      if (cursorToggle) cursorToggle.checked = config.state.syncCursor;
     }
 
     function draggingHandler(ev) {
@@ -523,9 +508,9 @@ export function main() {
       top = Math.min(Math.max(top, minTop), maxTop);
       left = Math.min(Math.max(left, minLeft), maxLeft);
 
-      panel.style.setProperty("top", `${top}px`);
-      panel.style.setProperty("left", `${left}px`);
-      panel.style.setProperty("right", "auto"); // By default "right" is used in CSS, must override with "auto"
+      host.style.setProperty("top", `${top}px`);
+      host.style.setProperty("left", `${left}px`);
+      host.style.setProperty("right", "auto"); // By default "right" is used in CSS, must override with "auto"
     };
 
     function dragEndedHandler(ev) {
@@ -540,10 +525,12 @@ export function main() {
       window.removeEventListener("pointermove", draggingHandler);
     };
 
-    return { panel, badge, state: config, update: updateUIControls };
+    return { panel: host, badge };
   }
 
+  /** @param {HTMLElement} panel */
   function pulseUI(panel) {
+    if (!panel) return;
     panel.classList.add("receiving");
 
     setTimeout(() => panel.classList.remove("receiving"), 150);
@@ -551,31 +538,38 @@ export function main() {
 
   // Generate the Ghost Cursor DOM Element
   function createGhostCursor() {
-    const cursor = document.createElement("div");
-    cursor.id = "mirror-sync-ghost-cursor";
-    cursor.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 14px;
-      height: 14px;
-      background-color: rgba(0, 255, 255, 0.4);
-      border: 2px solid #00ffff;
-      border-radius: 50%;
-      box-shadow: 0 0 8px rgba(0, 255, 255, 0.8);
-      pointer-events: none;
-      z-index: 2147483647; 
-      transform: translate(-50%, -50%); 
-      opacity: 0; 
-      transition: opacity 0.2s ease-out;
-      will-change: transform;
+    const host = document.createElement("div");
+    const shadow = host.attachShadow({ mode: "open" });
+
+    host.style.cssText = [
+      "position: fixed",
+      "top: 0",
+      "left: 0",
+      "z-index: 2147483647",
+      "pointer-events: none",
+      "opacity: 0",
+      "transform: translate(-50%, -50%)",
+      "transition: opacity 0.2s ease-out",
+    ].join("; ");
+
+    shadow.innerHTML = `
+      <style>
+        .dot {
+          display: block;
+          width: 14px;
+          height: 14px;
+          background-color: rgba(0, 255, 255, 0.4);
+          border: 2px solid #00ffff;
+          border-radius: 50%;
+          box-shadow: 0 0 8px rgba(0, 255, 255, 0.8);
+        }
+      </style>
+      <div class="dot"></div>
     `;
 
-    if (document.body) {
-      document.body.append(cursor);
-    } else {
-      window.addEventListener("DOMContentLoaded", () => document.body.append(cursor));
-    }
-    return cursor;
+    if (document.body) document.body.append(host);
+    else window.addEventListener("DOMContentLoaded", () => document.body.append(host), { once: true });
+
+    return host;
   }
 }

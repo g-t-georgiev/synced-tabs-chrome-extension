@@ -27,7 +27,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
           console.warn(`[BACKGROUND] Tab ${tab.id} missing content script. Injecting dynamically...`);
 
           try {
-            // Force inject content script
+            // Force inject script
             await chrome.scripting.executeScript({
               target: { tabId: tab.id },
               files: ["content-bootstrap.js"]
