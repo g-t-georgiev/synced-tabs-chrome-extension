@@ -54,7 +54,7 @@ export function createStore(initialState) {
     let dirty = false;
     keys.forEach((key) => {
       if (!(key in changes)) return;
-      state[key] = changes[keys].newValue ?? initialState[key];
+      state[key] = changes[key].newValue ?? initialState[key];
       dirty = true;
     });
 
