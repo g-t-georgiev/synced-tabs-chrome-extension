@@ -34,7 +34,8 @@
 				"content-main.js",
 				"src/*.js",
 				"src/dom/*.js",
-				"src/core/*.js"
+				"src/core/*.js",
+				"src/ui/*.js"
 			],
 			"matches": [
 				"http://localhost/*",

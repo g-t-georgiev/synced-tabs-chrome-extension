@@ -51,8 +51,28 @@ export function dispatchSyntheticKeyboardEvent(element, type, data) {
   element.dispatchEvent(event);
 }
 
+/** 
+ * @typedef {Pick<
+ *  KeyboardEvent, 
+ *  | "key"
+ *  | "code" 
+ *  | "keyCode"
+ *  | "which"
+ *  | "charCode"
+ *  | "bubbles"
+ *  | "cancelable"
+ *  | "composed"
+ *  | "altKey"
+ *  | "ctrlKey"
+ *  | "shiftKey"
+ *  | "metaKey"
+ *  | "repeat"
+ * >} KeyboardEventData
+ */
+
 /**
  * @param {KeyboardEvent} event
+ * @returns {KeyboardEventData}
  */
 export function buildKeyboardEventData(event) {
   return {

@@ -17,4 +17,6 @@ export const DEFAULT_CONFIG = {
   syncCursor: true,
 };
 
+/** @typedef {typeof DEFAULT_CONFIG} StateConfig */
+
 export const TARGET_HOSTS = ["localhost", "frontend-dev.octoplay.dev"];
