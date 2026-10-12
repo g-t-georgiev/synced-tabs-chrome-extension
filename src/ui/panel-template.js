@@ -37,10 +37,11 @@ export function createPanelUICSS() {
       border-radius: 999px;
       background: #fff;
       cursor: grab;
+      z-index: 1;
     }
 
     .header {
-      padding-bottom: 6px;
+      padding-bottom: 2px;
       border-bottom: 1px solid #262626;
     }
 
@@ -64,6 +65,11 @@ export function createPanelUICSS() {
       justify-content: space-between;
       align-items: center;
       gap: 8px;
+      padding: 0 8px;
+      font-size: 12px;
+    }
+    .row:last-child {
+      padding-bottom: 4px;
     }
 
     label {

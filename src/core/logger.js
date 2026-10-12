@@ -11,7 +11,7 @@ export function createLogger(windowId) {
   return {
     /** @param {string} url */
     initialized(url) {
-      let color = "#00ff00"
+      const color = "#00ff00"
       console.log(`%c[SYNC INITIALIZED]%c Window ID [${shortId}] URL: ${url}`, `color: ${color}; ${TAG_STYLE}`, RESET);
     },
     /**
@@ -19,7 +19,7 @@ export function createLogger(windowId) {
      * @param {T & { type: string; subType: string; }} message
      */
     remote(message) {
-      let color = "#00ffff";
+      const color = "#00ffff";
       console.log(`%c[REMOTE EVENT RECEIVED]%c ${message.type} -> ${message.subType || ""}`, `color: ${color}; ${TAG_STYLE}`, RESET, message);
     },
     /**
