@@ -1,20 +1,12 @@
 import { ACTIONS } from "../constants.js";
 
 /**
- * @template {object} T
- * @typedef {T & { action: string; originWindowId: string; }} Message
- */
-
-/**
  * @param {object} options
  * @param {string} options.windowId
+ * @returns {import("../constants.js").MessageController}
  */
 export function createTransport({ windowId }) {
   return {
-    /**
-     * @template {any} T
-     * @param {T} payload
-     */
     broadcast(payload) {
       chrome.runtime.sendMessage({
         ...payload,
@@ -24,14 +16,9 @@ export function createTransport({ windowId }) {
         //
       });
     },
-    /**
-     * @template {object} T
-     * @param {((message: Message<T>) => void)} handler Custom handler
-     * @returns {() => void} Unsubscribe function
-     */
     onRemote(handler) {
       /**
-       * @param {Message<T>} message
+       * @param {Parameters<typeof handler>[0]} message
        * @returns {void}
        */
       const listener = (message) => {

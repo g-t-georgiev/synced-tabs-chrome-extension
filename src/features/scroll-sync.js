@@ -28,9 +28,9 @@ const EVENT_TYPE = "scroll";
 /**
  * @template {import("../constants.js").StateConfig} State
  * @param {object} options
- * @param {ReturnType<typeof import("../core/state-store.js").createStore<State>>} options.config
- * @param {ReturnType<typeof import("../core/messaging.js").createTransport>} options.transport
- * @returns {import("../core/sync-engine.js").Feature<ScrollSyncKey, ScrollSyncPayload>}
+ * @param {import("../constants.js").StateStore<State>} options.config
+ * @param {import("../constants.js").MessageController} options.transport
+ * @returns {import("../constants.js").Feature<ScrollSyncKey, ScrollSyncPayload>}
  */
 export function createScrollSync({ config, transport }) {
   /** @type {WeakMap<TTarget, { top: number; left: number; }>} */

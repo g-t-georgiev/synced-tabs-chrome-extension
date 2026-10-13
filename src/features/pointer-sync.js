@@ -24,10 +24,10 @@ const EVENT_TYPES = [`${PREFIX}down`, `${PREFIX}up`, "click"];
 /**
  * @template {import("../constants.js").StateConfig} State
  * @param {object} options
- * @param {ReturnType<typeof import("../core/state-store.js").createStore<State>>} options.config
- * @param {ReturnType<typeof import("../core/messaging.js").createTransport>} options.transport
- * @param {ReturnType<typeof import("../core/logger.js").createLogger>} options.logger
- * @returns {import("../core/sync-engine.js").Feature<PointerSyncKey, PointerSyncPayload>}
+ * @param {import("../constants.js").StateStore<State>} options.config
+ * @param {import("../constants.js").MessageController} options.transport
+ * @param {import("../constants.js").Logger} options.logger
+ * @returns {import("../constants.js").Feature<PointerSyncKey, PointerSyncPayload>}
  */
 export function createPointerSync({ config, transport, logger }) {
   return {

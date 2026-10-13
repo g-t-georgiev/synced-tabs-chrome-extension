@@ -2,7 +2,10 @@ const FADE_DELAY_MS = 800;
 
 /** @typedef {number | null} FadeTimeoutHandle */
 
-/** Generate the ghost cursor DOM element. */
+/** 
+ * Generate the ghost cursor DOM element.
+ * @returns {import("../constants").CursorController}
+ */
 export function createCursor() {
   const host = document.createElement("div");
   const shadow = host.attachShadow({ mode: "open" });
@@ -40,10 +43,6 @@ export function createCursor() {
   else window.addEventListener("DOMContentLoaded", () => document.body.append(host), { once: true });
 
   return {
-    /**
-     * @param {number} x
-     * @param {number} y
-     */
     moveTo(x, y) {
       host.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
       host.style.opacity = "1";

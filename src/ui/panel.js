@@ -7,8 +7,8 @@ const BADGE_FLASH_MS = 200;
  * @template {import("../constants.js").StateConfig} State
  * @param {object} options
  * @param {string} options.windowId
- * @param {ReturnType<typeof import("../core/state-store.js").createStore<State>>} options.config
- * @returns
+ * @param {import("../constants.js").StateStore<State>} options.config
+ * @returns {import("../constants.js").UIController}
  */
 export function createPanel({ windowId, config }) {
   let host = null,

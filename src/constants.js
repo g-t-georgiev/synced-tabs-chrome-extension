@@ -10,8 +10,6 @@ export const MESSAGE_TYPES = {
   SCROLL_EVENT: "SCROLL_EVENT",
 };
 
-/** @typedef {typeof MESSAGE_TYPES[keyof typeof MESSAGE_TYPES]} MessageType */
-
 export const DEFAULT_CONFIG = {
   syncMouse: false,
   syncScroll: false,
@@ -21,6 +19,17 @@ export const DEFAULT_CONFIG = {
 
 /** @typedef {typeof DEFAULT_CONFIG} StateConfig */
 /** @typedef {keyof StateConfig} StateConfigKey */
+
+/**
+ * @template {unknown} State
+ * @typedef {object} StateStore
+ * @property {State} state
+ * @property {Promise<State>} ready
+ * @property {(<T extends keyof State>(key: T, value: State[T]) => Promise<void>)} set
+ * @property {((listener: ((state: State) => unknown)) => (() => boolean))} subscribe
+ */
+
+/** @typedef {typeof MESSAGE_TYPES[keyof typeof MESSAGE_TYPES]} MessageType */
 /** 
  * @typedef {{
  *  type: string;
@@ -32,6 +41,51 @@ export const DEFAULT_CONFIG = {
  *  xPoint: number;
  *  yPoint: number;
  * }} MessagePayload
+ */
+/**
+ * @template {object} [T = MessagePayload]
+ * @typedef {T & { action: string; originWindowId: string; }} Message
+ */
+/**
+ * @typedef {object} MessageController
+ * @property {(<T extends unknown>(payload: T) => void)} broadcast
+ * @property {(<T extends unknown>(handler: ((message: Message<T>) => void)) => (() => void))} onRemote
+ */
+
+/**
+ * @template {StateConfigKey} [TKey = StateConfigKey]
+ * @template {Partial<MessagePayload>} [TPayload = MessagePayload]
+ * @typedef {object} Feature
+ * @property {TKey} configKey
+ * @property {(MessageType)[]} handles
+ * @property {boolean} silent
+ * @property {(() => (() => void))} capture
+ * @property {((message: Message<TPayload>) => any)} apply
+ */
+
+/**
+ * @typedef {object} SyncEngine
+ * @property {((feature: Feature) => void)} register
+ * @property {(() => void)} start
+ * @property {(() => void)} stop
+ */
+
+/**
+ * @typedef {object} UIController
+ * @property {(() => void)} flash
+ * @property {(() => void)} pulse
+ */
+
+/**
+ * @typedef {object} CursorController
+ * @property {((x: number, y: number) => void)} moveTo
+ */
+
+/**
+ * @typedef {object} Logger
+ * @property {((url: string) => void)} initialized
+ * @property {(<T extends unknown>(message: T & { type: string; subType: string; }) => void)} remote
+ * @property {(<T extends unknown>(label: string, ...details: T) => void)} execute
  */
 
 export const TARGET_HOSTS = ["localhost", "frontend-dev.octoplay.dev"];

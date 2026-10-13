@@ -13,10 +13,10 @@ import { pointToRatio, ratioToPoint, rAfThrottle, isPointerEventSupported } from
 /**
  * @template {import("../constants.js").StateConfig} State
  * @param {object} options
- * @param {ReturnType<typeof import("../core/state-store.js").createStore<State>>} options.config
- * @param {ReturnType<typeof import("../core/messaging.js").createTransport>} options.transport
- * @param {ReturnType<typeof import("../ui/cursor.js").createCursor>} options.cursor
- * @returns {import("../core/sync-engine.js").Feature<CursorSyncKey, CursorSyncPayload>}
+ * @param {import("../constants.js").StateStore<State>} options.config
+ * @param {import("../constants.js").MessageController} options.transport
+ * @param {import("../constants.js").CursorController} options.cursor
+ * @returns {import("../constants.js").Feature<CursorSyncKey, CursorSyncPayload>}
  */
 export function createCursorSync({ config, transport, cursor }) {
   const eventType = isPointerEventSupported() ? "pointermove" : "mousemove";

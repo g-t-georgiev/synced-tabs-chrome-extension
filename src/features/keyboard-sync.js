@@ -24,10 +24,10 @@ const EMPTY_RECT = { left: 0, top: 0, width: 0, height: 0 };
 /**
  * @template {import("../constants.js").StateConfig} State
  * @param {object} options
- * @param {ReturnType<typeof import("../core/state-store.js").createStore<State>>} options.config
- * @param {ReturnType<typeof import("../core/messaging.js").createTransport>} options.transport
- * @param {ReturnType<typeof import("../core/logger.js").createLogger>} options.logger
- * @returns {import("../core/sync-engine.js").Feature<KeyboardSyncKey, KeyboardSyncPayload>}
+ * @param {import("../constants.js").StateStore<State>} options.config
+ * @param {import("../constants.js").MessageController} options.transport
+ * @param {import("../constants.js").Logger} options.logger
+ * @returns {import("../constants.js").Feature<KeyboardSyncKey, KeyboardSyncPayload>}
  */
 export function createKeyboardSync({ config, transport, logger }) {
   /** @type {Element | null} */

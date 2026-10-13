@@ -2,7 +2,8 @@ const STORAGE_AREA = "local";
 
 /**
  * @template {unknown} State
- * @param {State} initialState 
+ * @param {State} initialState
+ * @returns {import("../constants").StateStore}
  */
 export function createStore(initialState) {
   /** @typedef {(keyof State)} StateKey */
