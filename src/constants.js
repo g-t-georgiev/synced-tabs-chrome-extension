@@ -10,6 +10,8 @@ export const MESSAGE_TYPES = {
   SCROLL_EVENT: "SCROLL_EVENT",
 };
 
+/** @typedef {typeof MESSAGE_TYPES[keyof typeof MESSAGE_TYPES]} MessageType */
+
 export const DEFAULT_CONFIG = {
   syncMouse: false,
   syncScroll: false,
@@ -18,5 +20,18 @@ export const DEFAULT_CONFIG = {
 };
 
 /** @typedef {typeof DEFAULT_CONFIG} StateConfig */
+/** @typedef {keyof StateConfig} StateConfigKey */
+/** 
+ * @typedef {{
+ *  type: string;
+ *  subType: string;
+ *  isDocument: boolean;
+ *  keyData: import("./dom/synthetic-events.js").KeyboardEventData;
+ *  xRatio: number;
+ *  yRatio: number;
+ *  xPoint: number;
+ *  yPoint: number;
+ * }} MessagePayload
+ */
 
 export const TARGET_HOSTS = ["localhost", "frontend-dev.octoplay.dev"];

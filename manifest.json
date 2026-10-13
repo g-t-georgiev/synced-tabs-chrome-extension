@@ -33,8 +33,9 @@
 			"resources": [
 				"content-main.js",
 				"src/*.js",
-				"src/dom/*.js",
 				"src/core/*.js",
+				"src/dom/*.js",
+				"src/features/*.js",
 				"src/ui/*.js"
 			],
 			"matches": [
