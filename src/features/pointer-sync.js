@@ -22,14 +22,12 @@ const EVENT_TYPES = [`${PREFIX}down`, `${PREFIX}up`, "click"];
 */
 
 /**
- * @template {import("../constants.js").StateConfig} State
  * @param {object} options
- * @param {import("../constants.js").StateStore<State>} options.config
  * @param {import("../constants.js").MessageController} options.transport
  * @param {import("../constants.js").Logger} options.logger
  * @returns {import("../constants.js").Feature<PointerSyncKey, PointerSyncPayload>}
  */
-export function createPointerSync({ config, transport, logger }) {
+export function createPointerSync({ transport, logger }) {
   return {
     configKey: "syncMouse",
     handles: [MESSAGE_TYPES.POINTER_EVENT],
@@ -41,7 +39,7 @@ export function createPointerSync({ config, transport, logger }) {
        * @returns
        */
       const onPointer = (event) => {
-        if (!event.isTrusted || !config.state.syncMouse) return;
+        if (!event.isTrusted) return;
 
         const ratio = pointToRatio(event.clientX, event.clientY);
 

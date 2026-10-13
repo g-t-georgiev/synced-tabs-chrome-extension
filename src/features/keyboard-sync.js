@@ -22,14 +22,12 @@ const EMPTY_RECT = { left: 0, top: 0, width: 0, height: 0 };
  */
 
 /**
- * @template {import("../constants.js").StateConfig} State
  * @param {object} options
- * @param {import("../constants.js").StateStore<State>} options.config
  * @param {import("../constants.js").MessageController} options.transport
  * @param {import("../constants.js").Logger} options.logger
  * @returns {import("../constants.js").Feature<KeyboardSyncKey, KeyboardSyncPayload>}
  */
-export function createKeyboardSync({ config, transport, logger }) {
+export function createKeyboardSync({ transport, logger }) {
   /** @type {Element | null} */
   let syncKeyTarget = null;
 
@@ -44,7 +42,7 @@ export function createKeyboardSync({ config, transport, logger }) {
        * @returns
        */
       const onKey = (event) => {
-        if (!event.isTrusted || !config.state.syncKeyboard) return;
+        if (!event.isTrusted) return;
 
         const origin = event.target || document.activeElement || document.body;
         const rect = "getBoundingClientRect" in origin ? origin.getBoundingClientRect() : EMPTY_RECT;

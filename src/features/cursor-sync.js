@@ -11,14 +11,12 @@ import { pointToRatio, ratioToPoint, rAfThrottle, isPointerEventSupported } from
 */
 
 /**
- * @template {import("../constants.js").StateConfig} State
  * @param {object} options
- * @param {import("../constants.js").StateStore<State>} options.config
  * @param {import("../constants.js").MessageController} options.transport
  * @param {import("../constants.js").CursorController} options.cursor
  * @returns {import("../constants.js").Feature<CursorSyncKey, CursorSyncPayload>}
  */
-export function createCursorSync({ config, transport, cursor }) {
+export function createCursorSync({ transport, cursor }) {
   const eventType = isPointerEventSupported() ? "pointermove" : "mousemove";
 
   return {
@@ -43,7 +41,7 @@ export function createCursorSync({ config, transport, cursor }) {
        * @returns
        */
       const onMove = (event) => {
-        if (!event.isTrusted || !config.state.syncCursor) return;
+        if (!event.isTrusted) return;
         const ratio = pointToRatio(event.clientX, event.clientY);
         broadcast(ratio.x, ratio.y);
       }

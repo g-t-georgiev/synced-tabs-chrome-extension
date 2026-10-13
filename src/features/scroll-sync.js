@@ -26,13 +26,11 @@ const EVENT_TYPE = "scroll";
 /** @typedef {Element | Document} TTarget */
 
 /**
- * @template {import("../constants.js").StateConfig} State
  * @param {object} options
- * @param {import("../constants.js").StateStore<State>} options.config
  * @param {import("../constants.js").MessageController} options.transport
  * @returns {import("../constants.js").Feature<ScrollSyncKey, ScrollSyncPayload>}
  */
-export function createScrollSync({ config, transport }) {
+export function createScrollSync({ transport }) {
   /** @type {WeakMap<TTarget, { top: number; left: number; }>} */
   const pendingEchoes = new WeakMap();
 
@@ -77,7 +75,7 @@ export function createScrollSync({ config, transport }) {
        * @returns
        */
       const onScroll = (event) => {
-        if (!event.isTrusted || !config.state.syncScroll) return;
+        if (!event.isTrusted) return;
         broadcast(event.target);
       };
 

@@ -25,10 +25,10 @@ export function main() {
   const cursor = createCursor();
 
   const engine = createSyncEngine({ config, transport, ui, logger });
-  engine.register(createCursorSync({ config, transport, cursor }));
-  engine.register(createPointerSync({ config, transport, logger }));
-  engine.register(createKeyboardSync({ config, transport, logger }));
-  engine.register(createScrollSync({ config, transport }));
+  engine.register(createCursorSync({ transport, cursor }));
+  engine.register(createPointerSync({ transport, logger }));
+  engine.register(createKeyboardSync({ transport, logger }));
+  engine.register(createScrollSync({ transport }));
   engine.start();
 
   logger.initialized(window.location.href);

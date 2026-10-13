@@ -16,6 +16,23 @@ export function createSyncEngine({ config, transport, ui, logger }) {
   const features = [];
   /** @type {(() => any)[]} */
   const teardowns = [];
+  /** @type {Map<TFeature, (() => any)} */
+  const activeCaptures = new Map();
+
+  /** @param {State} state */
+  function syncCaptures(state) {
+    for (const feature of features) {
+      const enabled = Boolean(state[feature.configKey]);
+      const teardown = activeCaptures.get(feature);
+
+      if (enabled && !teardown) {
+        activeCaptures.set(feature, feature.capture());
+      } else if (!enabled && teardown) {
+        teardown();
+        activeCaptures.delete(feature);
+      }
+    }
+  }
 
   /**
    * @param {import("../constants.js").Message} message
@@ -54,11 +71,14 @@ export function createSyncEngine({ config, transport, ui, logger }) {
       features.push(feature);
     },
     start() {
-      features.forEach((feature) => teardowns.push(feature.capture()));
+      syncCaptures(config.state);
+      teardowns.push(config.subscribe(syncCaptures));
       teardowns.push(transport.onRemote(handleRemote));
     },
     stop() {
-      teardowns.splice(0).forEach((teardown) => teardown?.());
+      teardowns.splice(0).forEach((teardown) => teardown());
+      activeCaptures.forEach((teardown) => teardown());
+      activeCaptures.clear();
     }
   };
 }
