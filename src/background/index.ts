@@ -1,4 +1,4 @@
-import { ACTIONS, TARGET_HOSTS } from "./src/constants.js";
+import { ACTIONS, TARGET_HOSTS } from "../shared/constants";
 
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.action === ACTIONS.BROADCAST) {
@@ -11,7 +11,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
         // Skip originating tab
         if (tab.id === senderTabId) return;
 
-        const isTargetDomain = TARGET_HOSTS.some((host) => tab.url.includes(host));
+        const isTargetDomain = TARGET_HOSTS.some((host) => tab.url && tab.url.includes(host));
 
         if (!isTargetDomain) return;
 

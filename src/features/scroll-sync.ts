@@ -1,4 +1,5 @@
-import { MESSAGE_TYPES } from "../constants.js";
+import type { Feature, MessageController, StateConfigKey } from "../shared/types";
+import { MESSAGE_TYPES } from "../shared/constants";
 import {
   elementAt,
   rAfThrottle,
@@ -7,32 +8,23 @@ import {
   ratioToScrollOffset,
   scrollOffsetToRatio,
   findScrollableAncestor,
-} from "../dom/index.js";
+} from "../dom";
+
+type TTarget = HTMLElement | Document;
+type ScrollSyncKey = Extract<StateConfigKey, "syncScroll">;
+interface ScrollSyncPayload {
+  type: string;
+  isDocument: boolean;
+  xRatio: number;
+  yRatio: number;
+  xPoint: number;
+  yPoint: number;
+};
 
 const EVENT_TYPE = "scroll";
 
-/** @typedef {Extract<import("../constants.js").StateConfigKey, "syncScroll">} ScrollSyncKey */
-/**
- * @typedef {{
- *  type: string;
- *  isDocument: boolean;
- *  xRatio: number;
- *  yRatio: number;
- *  xPoint: number;
- *  yPoint: number;
- * }} ScrollSyncPayload
- */
-
-/** @typedef {Element | Document} TTarget */
-
-/**
- * @param {object} options
- * @param {import("../constants.js").MessageController} options.transport
- * @returns {import("../constants.js").Feature<ScrollSyncKey, ScrollSyncPayload>}
- */
-export function createScrollSync({ transport }) {
-  /** @type {WeakMap<TTarget, { top: number; left: number; }>} */
-  const pendingEchoes = new WeakMap();
+export function createScrollSync({ transport }: { transport: MessageController }): Feature<ScrollSyncKey, ScrollSyncPayload> {
+  const pendingEchoes: WeakMap<HTMLElement, Pick<DOMRect, "top" | "left">> = new WeakMap();
 
   return {
     configKey: "syncScroll",
@@ -41,9 +33,8 @@ export function createScrollSync({ transport }) {
 
     capture() {
       const broadcast = rAfThrottle(
-        /** @param {TTarget} target */
-        (target) => {
-          const isDocument = target === document;
+        (target: Document | HTMLElement) => {
+          const isDocument = target instanceof Document;
           const el = isDocument ? document.documentElement : target;
 
           const echo = pendingEchoes.get(el);
@@ -56,7 +47,7 @@ export function createScrollSync({ transport }) {
 
           const ratio = scrollOffsetToRatio(el);
           const point = isDocument ? { x: 0.5, y: 0.5 } : elementCenterToRatio(el);
-    
+
           transport.broadcast({
             type: MESSAGE_TYPES.SCROLL_EVENT,
             // document/window scroll vs nested overflow container
@@ -70,13 +61,14 @@ export function createScrollSync({ transport }) {
         }
       );
 
-      /**
-       * @param {Event} event
-       * @returns
-       */
-      const onScroll = (event) => {
+      const onScroll = (event: Event) => {
         if (!event.isTrusted) return;
-        broadcast(event.target);
+
+        const { target } = event;
+
+        if (!(target instanceof Document) && !(target instanceof HTMLElement)) return;
+
+        broadcast(target);
       };
 
       window.addEventListener(EVENT_TYPE, onScroll, true); // capture: true so nested scroll containers are included
@@ -87,7 +79,7 @@ export function createScrollSync({ transport }) {
     },
 
     apply(message) {
-      let target;
+      let target: HTMLElement | undefined;
       if (message.isDocument) {
         target = document.documentElement;
       } else {

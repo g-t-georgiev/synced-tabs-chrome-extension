@@ -1,0 +1,20 @@
+{
+	"manifest_version": 3,
+	"name": "Window Mirror Sync",
+	"version": "1.0.0",
+	"permissions": ["tabs", "scripting", "storage"],
+	"host_permissions": ["<all_urls>"],
+	"background": {
+		"service_worker": "background.js",
+		"type": "module"
+	},
+	"content_scripts": [
+		{
+			"matches": ["http://localhost/*", "https://frontend-dev.octoplay.dev/*"],
+			"js": ["content.js"],
+			"all_frames": true,
+			"match_origin_as_fallback": true,
+			"run_at": "document_start"
+		}
+	]
+}
