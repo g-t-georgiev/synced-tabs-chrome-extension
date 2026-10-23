@@ -30,7 +30,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
             // Force inject script
             await chrome.scripting.executeScript({
               target: { tabId: tab.id },
-              files: ["content-bootstrap.js"]
+              files: ["content.js"]
             });
 
             // Resend message after injection
