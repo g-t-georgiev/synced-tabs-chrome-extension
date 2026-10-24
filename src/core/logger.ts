@@ -1,11 +1,9 @@
+import type { Logger } from "../shared/types";
+
 const TAG_STYLE = "font-weight: bold;";
 const RESET = "color: default;";
 
-/**
- * @param {string} windowId
- * @returns {import("../constants").Logger}
- */
-export function createLogger(windowId) {
+export function createLogger(windowId: string): Logger {
   const shortId = windowId.slice(0, 8);
 
   return {

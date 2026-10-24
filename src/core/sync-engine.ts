@@ -1,26 +1,29 @@
-/** @typedef {import("../constants.js").Feature} TFeature */
+import type {
+  StateStore,
+  Logger,
+  MessageController,
+  StateConfig,
+  SyncEngine,
+  UIController,
+  Feature,
+  Message
+} from "../shared/types";
 
-/**
- * @template {import("../constants.js").StateConfig} State
- * @param {object} options
- * @param {import("../constants.js").StateStore<State>} options.config
- * @param {import("../constants.js").MessageController} options.transport
- * @param {import("../constants.js").UIController} options.ui
- * @param {import("../constants.js").Logger} options.logger
- * @returns {import("../constants.js").SyncEngine}
- */
-export function createSyncEngine({ config, transport, ui, logger }) {
-  /** @type {Map<string, TFeature>} */
-  const routes = new Map();
-  /** @type {TFeature[]} */
-  const features = [];
-  /** @type {(() => any)[]} */
-  const teardowns = [];
-  /** @type {Map<TFeature, (() => any)} */
-  const activeCaptures = new Map();
+export function createSyncEngine<State extends object>(
+  { config, transport, ui, logger }:
+  {
+    config: StateStore<State>,
+    transport: MessageController,
+    ui: UIController,
+    logger: Logger
+  }
+): SyncEngine<State> {
+  const routes: Map<string, Feature<keyof State>> = new Map();
+  const features: Feature<keyof State>[] = [];
+  const teardowns: (() => any)[] = [];
+  const activeCaptures: Map<Feature<keyof State>, (() => any)> = new Map();
 
-  /** @param {State} state */
-  function syncCaptures(state) {
+  function syncCaptures(state: State) {
     for (const feature of features) {
       const enabled = Boolean(state[feature.configKey]);
       const teardown = activeCaptures.get(feature);
@@ -34,11 +37,7 @@ export function createSyncEngine({ config, transport, ui, logger }) {
     }
   }
 
-  /**
-   * @param {import("../constants.js").Message} message
-   * @returns {void}
-   */
-  function handleRemote(message) {
+  function handleRemote(message: Message): void {
     const feature = routes.get(message.type);
     if (!feature) return;
 

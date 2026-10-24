@@ -1,5 +1,7 @@
+import type { StateConfig, StateStore } from "../shared/types";
+
 export function createPanelUICSS() {
-  return `    
+  return `
   <style>
     :host {
       position: fixed;
@@ -25,7 +27,7 @@ export function createPanelUICSS() {
       border-color: #00ffff;
       box-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
     }
-    
+
     .drag-handle {
       display: block;
       position: absolute;
@@ -78,7 +80,7 @@ export function createPanelUICSS() {
       align-items: center;
       gap: 6px;
     }
-      
+
     input[type="checkbox"] {
       cursor: pointer;
       accent-color: #4cd964;
@@ -140,13 +142,7 @@ export function createPanelUICSS() {
   </style>`;
 }
 
-/**
- * @template {import("../constants.js").StateConfig} State
- * @param {object} options
- * @param {string} options.windowId
- * @param {ReturnType<typeof import("../core/state-store.js").createStore<State>>} options.config
- */
-export function createPanelUIHTML({ windowId, config }) {
+export function createPanelUIHTML({ windowId, config }: { windowId: string, config: StateStore<StateConfig>}) {
   return `
   <div class="drag-handle"></div>
 

@@ -1,6 +1,39 @@
-# Ignore VS Code workspace user state
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE config
 .vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
 !.vscode/extensions.json
+
+.idea/
+*.sublime-workspace
+*.code-workspace
+
+# Logs and temp files
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Node (if added later for dev tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Optional: cache/compiled assets
+.cache/
+dist/
+build/
+*.zip
+
+# Environment variables (if used)
+.env
+.env.local
+
+# Vite + TypeScript
+*.local
+*.tsbuildinfo

@@ -1,17 +1,9 @@
-/**
- * @param {number} x 
- * @param {number} y 
- * @param {Element?} fallback
- * @returns {Element | null}
- */
-export function elementAt(x, y, fallback = null) {
-  return document.elementFromPoint(x, y) ?? fallback;
+export function elementAt(x: number, y: number, fallback?: HTMLElement) {
+  const element = document.elementFromPoint(x, y);
+  return element instanceof HTMLElement ? element : fallback;
 }
 
-/**
- * @param {Element?} elem
- */
-export function findScrollableAncestor(elem) {
+export function findScrollableAncestor(elem?: HTMLElement) {
   // walk up to a scrollable ancestor if needed
   while (elem && elem !== document.body) {
     const style = getComputedStyle(elem);
@@ -20,8 +12,11 @@ export function findScrollableAncestor(elem) {
       /(auto|scroll)/.test(style.overflowX);
     const hasYScroll = elem.scrollHeight > elem.clientHeight;
     const hasXScroll = elem.scrollWidth > elem.clientWidth;
+
     if (canScroll && (hasYScroll || hasXScroll)) break;
-    elem = elem.parentElement;
+
+    const parent = elem.parentElement;
+    if (parent) elem = parent;
   }
 
   return elem || document.documentElement;

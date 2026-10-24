@@ -1,26 +1,20 @@
-import { createPanelUICSS, createPanelUIHTML } from "./panel-template.js";
+import type { StateConfig, StateStore, UIController } from "../shared/types";
+import { createPanelUICSS, createPanelUIHTML } from "./panel-template";
 
 const PULSE_MS = 150;
 const BADGE_FLASH_MS = 200;
 
-/**
- * @template {import("../constants.js").StateConfig} State
- * @param {object} options
- * @param {string} options.windowId
- * @param {import("../constants.js").StateStore<State>} options.config
- * @returns {import("../constants.js").UIController}
- */
-export function createPanel({ windowId, config }) {
-  let host = null,
-    mouseToggle = null,
-    scrollToggle = null,
-    keyToggle = null,
-    cursorToggle = null,
-    badge = null,
-    grabHandle = null,
+export function createPanel({ windowId, config }: { windowId: string; config: StateStore<StateConfig>}): UIController {
+  let host: HTMLElement,
+    mouseToggle: HTMLInputElement,
+    scrollToggle: HTMLInputElement,
+    keyToggle: HTMLInputElement,
+    cursorToggle: HTMLInputElement,
+    badge: HTMLElement,
+    grabHandle: HTMLElement,
     dragging = false,
-    panelBounds = null,
-    grabHandleBounds = null,
+    panelBounds: DOMRect,
+    grabHandleBounds: DOMRect,
     grabOffsetTop = 0,
     grabOffsetLeft = 0,
     grabInsetTop = 0,
@@ -36,12 +30,12 @@ export function createPanel({ windowId, config }) {
   shadow.innerHTML = styles + html;
 
   // Bind checkbox handlers to update chrome.storage
-  mouseToggle = shadow.querySelector("[id^=\"sync-mouse-toggle\"]");
-  scrollToggle = shadow.querySelector("[id^=\"sync-scroll-toggle\"]");
-  keyToggle = shadow.querySelector("[id^=\"sync-key-toggle\"]");
-  cursorToggle = shadow.querySelector("[id^=\"sync-cursor-toggle\"]");
-  badge = shadow.querySelector("#sync-extension-badge");
-  grabHandle = shadow.querySelector(".drag-handle");
+  mouseToggle = shadow.querySelector("[id^=\"sync-mouse-toggle\"]")!;
+  scrollToggle = shadow.querySelector("[id^=\"sync-scroll-toggle\"]")!;
+  keyToggle = shadow.querySelector("[id^=\"sync-key-toggle\"]")!;
+  cursorToggle = shadow.querySelector("[id^=\"sync-cursor-toggle\"]")!;
+  badge = shadow.querySelector("#sync-extension-badge")!;
+  grabHandle = shadow.querySelector(".drag-handle")!;
 
   config.subscribe(updateUIControls);
 
@@ -49,25 +43,25 @@ export function createPanel({ windowId, config }) {
   if (document.body) init();
   else window.addEventListener("DOMContentLoaded", () => init(), { once: true });
 
+  const onChange = function (key: keyof StateConfig) {
+    return function (ev: Event) {
+      const target = ev.target as HTMLInputElement;
+      const value = target.checked;
+      config.set(key, value);
+    };
+  };
+
   function init() {
     document.body.append(host);
 
     // Handle localStorage changes
-    mouseToggle.addEventListener("change", (ev) => {
-      config.set("syncMouse", ev.target.checked);
-    });
-    scrollToggle.addEventListener("change", (ev) => {
-      config.set("syncScroll", ev.target.checked);
-    });
-    keyToggle.addEventListener("change", (ev) => {
-      config.set("syncKeyboard", ev.target.checked);
-    });
-    cursorToggle.addEventListener("change", (ev) => {
-      config.set("syncCursor", ev.target.checked);
-    });
+    mouseToggle.addEventListener("change", onChange("syncMouse"));
+    scrollToggle.addEventListener("change", onChange("syncScroll"));
+    keyToggle.addEventListener("change", onChange("syncKeyboard"));
+    cursorToggle.addEventListener("change", onChange("syncCursor"));
 
     // Init dragging logic
-    grabHandle.addEventListener("pointerdown", (ev) => {
+    grabHandle.addEventListener("pointerdown", (ev: PointerEvent) => {
       if (dragging || ev.target !== grabHandle) return;
 
       dragging = true;
@@ -93,15 +87,16 @@ export function createPanel({ windowId, config }) {
       window.addEventListener("pointermove", draggingHandler);
     });
   };
-  // Handle updating UI state
+
+  /** Updates UI state. */
   function updateUIControls() {
     if (mouseToggle) mouseToggle.checked = config.state.syncMouse;
     if (keyToggle) keyToggle.checked = config.state.syncKeyboard;
     if (scrollToggle) scrollToggle.checked = config.state.syncScroll;
     if (cursorToggle) cursorToggle.checked = config.state.syncCursor;
   }
-  // Handle dragging
-  function draggingHandler(ev) {
+  /** Handles dragging. */
+  function draggingHandler(ev: PointerEvent) {
     if (!dragging) return;
 
     let offsetX = ev.clientX - grabOffsetLeft;
@@ -124,7 +119,8 @@ export function createPanel({ windowId, config }) {
     host.style.setProperty("left", `${left}px`);
     host.style.setProperty("right", "auto"); // By default "right" is used in CSS, must override with "auto"
   };
-  function dragEndedHandler(ev) {
+  /** Handles dragging end. */
+  function dragEndedHandler(ev: PointerEvent) {
     if (!dragging) return;
 
     dragging = false;
@@ -137,7 +133,7 @@ export function createPanel({ windowId, config }) {
   };
 
   return {
-    /** Flash badge blue when receiving remote event. Reset styles after 200ms */
+    /** Flash badge blue when receiving remote event. Reset styles after {@link BADGE_FLASH_MS} */
     flash() {
       if (!badge) return;
       badge.style.setProperty("background", "cyan");
@@ -147,6 +143,7 @@ export function createPanel({ windowId, config }) {
         badge.style.removeProperty("color");
       }, BADGE_FLASH_MS);
     },
+    /** Pulsing effect on when receiving remote event. Reset styles after {@link PULSE_MS} */
     pulse() {
       if (!host) return;
       host.classList.add("receiving");

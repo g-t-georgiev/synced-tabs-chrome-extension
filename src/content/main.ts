@@ -1,18 +1,18 @@
-import { DEFAULT_CONFIG } from "./src/constants.js";
+import { DEFAULT_CONFIG } from "../shared/constants";
 import {
   createStore,
   createLogger,
   createWindowId,
   createTransport,
   createSyncEngine
-} from "./src/core/index.js";
-import { createPanel, createCursor, createNullUi } from "./src/ui/index.js";
+} from "../core";
+import { createPanel, createCursor, createNullUi } from "../ui";
 import {
   createCursorSync,
   createScrollSync,
   createPointerSync,
   createKeyboardSync
-} from "./src/features/index.js";
+} from "../features";
 
 export function main() {
   const windowId = createWindowId();

@@ -1,11 +1,7 @@
-import { ACTIONS } from "../constants.js";
+import type { MessageController } from "../shared/types";
+import { ACTIONS } from "../shared/constants";
 
-/**
- * @param {object} options
- * @param {string} options.windowId
- * @returns {import("../constants.js").MessageController}
- */
-export function createTransport({ windowId }) {
+export function createTransport({ windowId }: { windowId: string; }): MessageController {
   return {
     broadcast(payload) {
       chrome.runtime.sendMessage({
@@ -17,11 +13,7 @@ export function createTransport({ windowId }) {
       });
     },
     onRemote(handler) {
-      /**
-       * @param {Parameters<typeof handler>[0]} message
-       * @returns {void}
-       */
-      const listener = (message) => {
+      const listener = (message: Parameters<typeof handler>[0]) => {
         if (message.action !== ACTIONS.EXECUTE) return;
         if (message.originWindowId === windowId) return;
 

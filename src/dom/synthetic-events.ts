@@ -1,14 +1,10 @@
+import type { KeyboardEventData } from "../shared/types";
+
 export function isPointerEventSupported() {
   return "PointerEvent" in window;
 }
 
-/**
- * @param {Element} element
- * @param {number} x
- * @param {number} y
- * @param {string} specificType
- */
-export function dispatchSyntheticPointerEvent(element, x, y, specificType) {
+export function dispatchSyntheticPointerEvent(element: HTMLElement, x: number, y: number, specificType: string) {
   if (!element) return;
 
   const eventInit = {
@@ -40,41 +36,13 @@ export function dispatchSyntheticPointerEvent(element, x, y, specificType) {
   if (typeof element.focus === "function") element.focus();
 }
 
-/**
- * @param {Element} element
- * @param {string} type
- * @param {KeyboardEventInit} [data] 
- */
-export function dispatchSyntheticKeyboardEvent(element, type, data) {
+export function dispatchSyntheticKeyboardEvent(element: HTMLElement, type: string, data: KeyboardEventInit) {
   if (!element) return;
   const event = new KeyboardEvent(type, data);
   element.dispatchEvent(event);
 }
 
-/** 
- * @typedef {Pick<
- *  KeyboardEvent, 
- *  | "key"
- *  | "code" 
- *  | "keyCode"
- *  | "which"
- *  | "charCode"
- *  | "bubbles"
- *  | "cancelable"
- *  | "composed"
- *  | "altKey"
- *  | "ctrlKey"
- *  | "shiftKey"
- *  | "metaKey"
- *  | "repeat"
- * >} KeyboardEventData
- */
-
-/**
- * @param {KeyboardEvent} event
- * @returns {KeyboardEventData}
- */
-export function buildKeyboardEventData(event) {
+export function buildKeyboardEventData(event: KeyboardEvent): KeyboardEventData {
   return {
     key: event.key,
     code: event.code,

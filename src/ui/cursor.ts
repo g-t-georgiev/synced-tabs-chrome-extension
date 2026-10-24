@@ -1,17 +1,15 @@
+import type { CursorController } from "../shared/types";
+
+type FadeTimeoutHandle = number | null;
+
 const FADE_DELAY_MS = 800;
 
-/** @typedef {number | null} FadeTimeoutHandle */
-
-/** 
- * Generate the ghost cursor DOM element.
- * @returns {import("../constants").CursorController}
- */
-export function createCursor() {
+/** Generate the ghost cursor DOM element. */
+export function createCursor(): CursorController {
   const host = document.createElement("div");
   const shadow = host.attachShadow({ mode: "open" });
 
-  /** @type {FadeTimeoutHandle} */
-  let fadeHandle = null;
+  let fadeHandle: FadeTimeoutHandle = null;
 
   host.style.cssText = [
     "position: fixed",
@@ -46,8 +44,9 @@ export function createCursor() {
     moveTo(x, y) {
       host.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
       host.style.opacity = "1";
-      // Fade out after 800ms of inactivity
+
       if (fadeHandle) clearTimeout(fadeHandle);
+
       fadeHandle = setTimeout(() => {
         host.style.opacity = "0";
       }, FADE_DELAY_MS);
