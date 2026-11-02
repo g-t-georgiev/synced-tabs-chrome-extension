@@ -38,7 +38,8 @@ export function createCursor(): CursorController {
     `;
 
   if (document.body) document.body.append(host);
-  else window.addEventListener("DOMContentLoaded", () => document.body.append(host), { once: true });
+  else
+    window.addEventListener("DOMContentLoaded", () => document.body.append(host), { once: true });
 
   return {
     moveTo(x, y) {
@@ -50,6 +51,6 @@ export function createCursor(): CursorController {
       fadeHandle = setTimeout(() => {
         host.style.opacity = "0";
       }, FADE_DELAY_MS);
-    }
+    },
   };
 }

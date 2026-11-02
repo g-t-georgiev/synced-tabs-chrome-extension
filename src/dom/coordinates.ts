@@ -28,7 +28,7 @@ export function elementCenterToRatio(el: HTMLElement) {
 export function ratioToPoint(x: number, y: number) {
   return {
     x: x * window.innerWidth,
-    y: y * window.innerHeight
+    y: y * window.innerHeight,
   };
 }
 

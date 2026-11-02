@@ -1,39 +1,58 @@
-# OS files
-.DS_Store
-Thumbs.db
+# Dependencies
+node_modules/
 
-# Editor/IDE config
-.vscode/*
-!.vscode/extensions.json
+# Build output
+dist/
+dist-ssr/
+build/
+web-ext-artifacts/
+*.crx
+*.zip
 
-.idea/
-*.sublime-workspace
-*.code-workspace
+# Extension signing key
+*.pem
 
-# Logs and temp files
+# Caches
+.cache/
+.vite/
+*.tsbuildinfo
+
+# Logs and scratch files
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 *.tmp
 *.temp
 *.bak
 *.swp
 *.swo
+*~
 
-# Node (if added later for dev tools)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Optional: cache/compiled assets
-.cache/
-dist/
-build/
-*.zip
-
-# Environment variables (if used)
+# Environment files
 .env
-.env.local
-
-# Vite + TypeScript
+.env.*
+!.env.example
 *.local
-*.tsbuildinfo
+
+# Other package-manager lockfiles
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.sublime-workspace
+*.code-workspace

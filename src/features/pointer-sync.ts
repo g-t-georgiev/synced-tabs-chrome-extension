@@ -1,4 +1,3 @@
-
 import type { Feature, Logger, MessageController, StateConfigKey } from "../shared/types";
 import { MESSAGE_TYPES } from "../shared/constants";
 import {
@@ -20,7 +19,13 @@ interface PointerSyncPayload {
 const PREFIX = isPointerEventSupported() ? "pointer" : "mouse";
 const EVENT_TYPES = [`${PREFIX}down`, `${PREFIX}up`, "click"] as const;
 
-export function createPointerSync({ transport, logger }: { transport: MessageController; logger: Logger; }): Feature<PointerSyncKey, PointerSyncPayload> {
+export function createPointerSync({
+  transport,
+  logger,
+}: {
+  transport: MessageController;
+  logger: Logger;
+}): Feature<PointerSyncKey, PointerSyncPayload> {
   return {
     configKey: "syncMouse",
     handles: [MESSAGE_TYPES.POINTER_EVENT],
@@ -54,8 +59,12 @@ export function createPointerSync({ transport, logger }: { transport: MessageCon
 
       if (!element) return;
 
-      logger.execute(message.subType, `at (${Math.round(point.x)}px, ${Math.round(point.y)}px) on:`, element);
+      logger.execute(
+        message.subType,
+        `at (${Math.round(point.x)}px, ${Math.round(point.y)}px) on:`,
+        element,
+      );
       dispatchSyntheticPointerEvent(element, point.x, point.y, message.subType);
-    }
+    },
   };
 }

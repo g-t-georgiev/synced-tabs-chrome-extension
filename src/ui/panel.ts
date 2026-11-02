@@ -4,7 +4,13 @@ import { createPanelUICSS, createPanelUIHTML } from "./panel-template";
 const PULSE_MS = 150;
 const BADGE_FLASH_MS = 200;
 
-export function createPanel({ windowId, config }: { windowId: string; config: StateStore<StateConfig>}): UIController {
+export function createPanel({
+  windowId,
+  config,
+}: {
+  windowId: string;
+  config: StateStore<StateConfig>;
+}): UIController {
   let host: HTMLElement,
     mouseToggle: HTMLInputElement,
     scrollToggle: HTMLInputElement,
@@ -30,10 +36,10 @@ export function createPanel({ windowId, config }: { windowId: string; config: St
   shadow.innerHTML = styles + html;
 
   // Bind checkbox handlers to update chrome.storage
-  mouseToggle = shadow.querySelector("[id^=\"sync-mouse-toggle\"]")!;
-  scrollToggle = shadow.querySelector("[id^=\"sync-scroll-toggle\"]")!;
-  keyToggle = shadow.querySelector("[id^=\"sync-key-toggle\"]")!;
-  cursorToggle = shadow.querySelector("[id^=\"sync-cursor-toggle\"]")!;
+  mouseToggle = shadow.querySelector('[id^="sync-mouse-toggle"]')!;
+  scrollToggle = shadow.querySelector('[id^="sync-scroll-toggle"]')!;
+  keyToggle = shadow.querySelector('[id^="sync-key-toggle"]')!;
+  cursorToggle = shadow.querySelector('[id^="sync-cursor-toggle"]')!;
   badge = shadow.querySelector("#sync-extension-badge")!;
   grabHandle = shadow.querySelector(".drag-handle")!;
 
@@ -47,7 +53,7 @@ export function createPanel({ windowId, config }: { windowId: string; config: St
     return function (ev: Event) {
       const target = ev.target as HTMLInputElement;
       const value = target.checked;
-      config.set(key, value);
+      config.set(key, value).catch(() => {});
     };
   };
 
@@ -86,7 +92,7 @@ export function createPanel({ windowId, config }: { windowId: string; config: St
       window.addEventListener("pointercancel", dragEndedHandler);
       window.addEventListener("pointermove", draggingHandler);
     });
-  };
+  }
 
   /** Updates UI state. */
   function updateUIControls() {
@@ -106,7 +112,7 @@ export function createPanel({ windowId, config }: { windowId: string; config: St
     let left = offsetX - grabInsetLeft;
 
     // handle top/left >= 0  →  panel >= -inset
-    const minTop = -grabInsetTop;   // ≈ 5
+    const minTop = -grabInsetTop; // ≈ 5
     const minLeft = -grabInsetLeft; // ≈ 5
 
     const maxTop = window.innerHeight - panelBounds.height;
@@ -118,9 +124,9 @@ export function createPanel({ windowId, config }: { windowId: string; config: St
     host.style.setProperty("top", `${top}px`);
     host.style.setProperty("left", `${left}px`);
     host.style.setProperty("right", "auto"); // By default "right" is used in CSS, must override with "auto"
-  };
+  }
   /** Handles dragging end. */
-  function dragEndedHandler(ev: PointerEvent) {
+  function dragEndedHandler() {
     if (!dragging) return;
 
     dragging = false;
@@ -130,7 +136,7 @@ export function createPanel({ windowId, config }: { windowId: string; config: St
     window.removeEventListener("pointerup", dragEndedHandler);
     window.removeEventListener("pointercancel", dragEndedHandler);
     window.removeEventListener("pointermove", draggingHandler);
-  };
+  }
 
   return {
     /** Flash badge blue when receiving remote event. Reset styles after {@link BADGE_FLASH_MS} */
@@ -148,6 +154,6 @@ export function createPanel({ windowId, config }: { windowId: string; config: St
       if (!host) return;
       host.classList.add("receiving");
       setTimeout(() => host.classList.remove("receiving"), PULSE_MS);
-    }
-  }
+    },
+  };
 }

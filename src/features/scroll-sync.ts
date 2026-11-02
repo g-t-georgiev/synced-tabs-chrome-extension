@@ -10,7 +10,6 @@ import {
   findScrollableAncestor,
 } from "../dom";
 
-type TTarget = HTMLElement | Document;
 type ScrollSyncKey = Extract<StateConfigKey, "syncScroll">;
 interface ScrollSyncPayload {
   type: string;
@@ -19,11 +18,15 @@ interface ScrollSyncPayload {
   yRatio: number;
   xPoint: number;
   yPoint: number;
-};
+}
 
 const EVENT_TYPE = "scroll";
 
-export function createScrollSync({ transport }: { transport: MessageController }): Feature<ScrollSyncKey, ScrollSyncPayload> {
+export function createScrollSync({
+  transport,
+}: {
+  transport: MessageController;
+}): Feature<ScrollSyncKey, ScrollSyncPayload> {
   const pendingEchoes: WeakMap<HTMLElement, Pick<DOMRect, "top" | "left">> = new WeakMap();
 
   return {
@@ -32,34 +35,32 @@ export function createScrollSync({ transport }: { transport: MessageController }
     silent: false,
 
     capture() {
-      const broadcast = rAfThrottle(
-        (target: Document | HTMLElement) => {
-          const isDocument = target instanceof Document;
-          const el = isDocument ? document.documentElement : target;
+      const broadcast = rAfThrottle((target: Document | HTMLElement) => {
+        const isDocument = target instanceof Document;
+        const el = isDocument ? document.documentElement : target;
 
-          const echo = pendingEchoes.get(el);
-          if (echo) {
-            pendingEchoes.delete(el);
-            const deltaX = el.scrollLeft - echo.left;
-            const deltaY = el.scrollTop - echo.top;
-            if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return;
-          }
-
-          const ratio = scrollOffsetToRatio(el);
-          const point = isDocument ? { x: 0.5, y: 0.5 } : elementCenterToRatio(el);
-
-          transport.broadcast({
-            type: MESSAGE_TYPES.SCROLL_EVENT,
-            // document/window scroll vs nested overflow container
-            isDocument,
-            xRatio: ratio.x,
-            yRatio: ratio.y,
-            // optional: help target nested scrollers
-            xPoint: point.x,
-            yPoint: point.y,
-          });
+        const echo = pendingEchoes.get(el);
+        if (echo) {
+          pendingEchoes.delete(el);
+          const deltaX = el.scrollLeft - echo.left;
+          const deltaY = el.scrollTop - echo.top;
+          if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return;
         }
-      );
+
+        const ratio = scrollOffsetToRatio(el);
+        const point = isDocument ? { x: 0.5, y: 0.5 } : elementCenterToRatio(el);
+
+        transport.broadcast({
+          type: MESSAGE_TYPES.SCROLL_EVENT,
+          // document/window scroll vs nested overflow container
+          isDocument,
+          xRatio: ratio.x,
+          yRatio: ratio.y,
+          // optional: help target nested scrollers
+          xPoint: point.x,
+          yPoint: point.y,
+        });
+      });
 
       const onScroll = (event: Event) => {
         if (!event.isTrusted) return;
@@ -91,6 +92,6 @@ export function createScrollSync({ transport }: { transport: MessageController }
       const offset = ratioToScrollOffset(target, message.xRatio, message.yRatio);
       pendingEchoes.set(target, offset);
       target.scrollTo({ top: offset.top, left: offset.left, behavior: "auto" });
-    }
+    },
   };
 }

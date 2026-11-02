@@ -1,5 +1,5 @@
 /** Coalesces calls to at most one invocation per animation frame. The most recent argument wins. */
-export function rAfThrottle<TFunc extends ((...args: any[]) => any)>(fn: TFunc) {
+export function rAfThrottle<TFunc extends (...args: any[]) => any>(fn: TFunc) {
   let frameId: number | null = null;
   let latestArgs: Parameters<TFunc> | null = null;
 

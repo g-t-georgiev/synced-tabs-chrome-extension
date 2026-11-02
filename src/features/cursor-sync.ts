@@ -9,7 +9,13 @@ interface CursorSyncPayload {
   yRatio: number;
 }
 
-export function createCursorSync({ transport, cursor }: { transport: MessageController; cursor: CursorController; }): Feature<CursorSyncKey, CursorSyncPayload> {
+export function createCursorSync({
+  transport,
+  cursor,
+}: {
+  transport: MessageController;
+  cursor: CursorController;
+}): Feature<CursorSyncKey, CursorSyncPayload> {
   const eventType = isPointerEventSupported() ? "pointermove" : "mousemove";
 
   return {
@@ -18,17 +24,15 @@ export function createCursorSync({ transport, cursor }: { transport: MessageCont
     silent: true,
 
     capture() {
-      const broadcast = rAfThrottle(
-        (xRatio: number, yRatio: number) => {
-          transport.broadcast({ type: MESSAGE_TYPES.POINTER_MOVE, xRatio, yRatio });
-        }
-      );
+      const broadcast = rAfThrottle((xRatio: number, yRatio: number) => {
+        transport.broadcast({ type: MESSAGE_TYPES.POINTER_MOVE, xRatio, yRatio });
+      });
 
       const onMove = (event: MouseEvent) => {
         if (!event.isTrusted) return;
         const ratio = pointToRatio(event.clientX, event.clientY);
         broadcast(ratio.x, ratio.y);
-      }
+      };
 
       window.addEventListener(eventType, onMove, { capture: true, passive: true });
       return () => {
@@ -40,6 +44,6 @@ export function createCursorSync({ transport, cursor }: { transport: MessageCont
     apply(message) {
       const point = ratioToPoint(message.xRatio, message.yRatio);
       cursor.moveTo(point.x, point.y);
-    }
+    },
   };
 }

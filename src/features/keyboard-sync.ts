@@ -1,18 +1,24 @@
-import type { Feature, KeyboardEventData, Logger, MessageController, StateConfigKey } from "../shared/types";
+import type {
+  Feature,
+  KeyboardEventData,
+  Logger,
+  MessageController,
+  StateConfigKey,
+} from "../shared/types";
 import { MESSAGE_TYPES } from "../shared/constants";
 import {
   elementAt,
   ratioToPoint,
   rectCenterToRatio,
   buildKeyboardEventData,
-  dispatchSyntheticKeyboardEvent
+  dispatchSyntheticKeyboardEvent,
 } from "../dom";
 
 type KeyboardSyncKey = Extract<StateConfigKey, "syncKeyboard">;
 interface KeyboardSyncPayload {
   type: string;
   subType: string;
-  keyData: KeyboardEventData
+  keyData: KeyboardEventData;
   xRatio: number;
   yRatio: number;
 }
@@ -20,7 +26,13 @@ interface KeyboardSyncPayload {
 const KEY_TYPES = ["keydown", "keypress", "keyup"] as const;
 const EMPTY_RECT = { left: 0, top: 0, width: 0, height: 0 };
 
-export function createKeyboardSync({ transport, logger }: { transport: MessageController; logger: Logger; }): Feature<KeyboardSyncKey, KeyboardSyncPayload> {
+export function createKeyboardSync({
+  transport,
+  logger,
+}: {
+  transport: MessageController;
+  logger: Logger;
+}): Feature<KeyboardSyncKey, KeyboardSyncPayload> {
   let syncKeyTarget: HTMLElement | null = null;
 
   return {
@@ -52,7 +64,8 @@ export function createKeyboardSync({ transport, logger }: { transport: MessageCo
     apply(message) {
       if (message.subType === "keydown" || !syncKeyTarget) {
         const point = ratioToPoint(message.xRatio, message.yRatio);
-        const fallback = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+        const fallback =
+          document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
         const element = elementAt(point.x, point.y, fallback);
 
         if (!element) return;
@@ -69,6 +82,6 @@ export function createKeyboardSync({ transport, logger }: { transport: MessageCo
       if (message.subType !== "keyup") return;
 
       syncKeyTarget = null;
-    }
+    },
   };
 }

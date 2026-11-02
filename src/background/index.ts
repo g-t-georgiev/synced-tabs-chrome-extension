@@ -23,14 +23,16 @@ chrome.runtime.onMessage.addListener((message, sender) => {
             ...message,
             action: ACTIONS.EXECUTE,
           });
-        } catch (err) {
-          console.warn(`[BACKGROUND] Tab ${tab.id} missing content script. Injecting dynamically...`);
+        } catch {
+          console.warn(
+            `[BACKGROUND] Tab ${tab.id} missing content script. Injecting dynamically...`,
+          );
 
           try {
             // Force inject script
             await chrome.scripting.executeScript({
               target: { tabId: tab.id },
-              files: ["content.js"]
+              files: ["content.js"],
             });
 
             // Resend message after injection

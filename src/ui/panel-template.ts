@@ -142,7 +142,13 @@ export function createPanelUICSS() {
   </style>`;
 }
 
-export function createPanelUIHTML({ windowId, config }: { windowId: string, config: StateStore<StateConfig>}) {
+export function createPanelUIHTML({
+  windowId,
+  config,
+}: {
+  windowId: string;
+  config: StateStore<StateConfig>;
+}) {
   return `
   <div class="drag-handle"></div>
 
