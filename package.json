@@ -5,8 +5,7 @@
     "build": "vp check && node scripts/build.mjs",
     "check": "vp check",
     "lint": "vp lint",
-    "fmt": "vp fmt",
-    "typecheck": "vp lint --type-aware"
+    "fmt": "vp fmt"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.6",
