@@ -1,7 +1,7 @@
 import type { Logger } from "../shared/types";
 
 const TAG_STYLE = "font-weight: bold;";
-const RESET = "color: default;";
+const RESET = "color: currentColor;";
 
 export function createLogger(windowId: string): Logger {
   const shortId = windowId.slice(0, 8);
