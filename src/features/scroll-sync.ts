@@ -21,7 +21,8 @@ interface ScrollSyncPayload {
 }
 
 const EVENT_TYPE = "scroll";
-const ECHO_TTL_MS = 100;
+// Echo lifetime represented as rendered frames
+const ECHO_FRAMES = 3;
 
 export function createScrollSync({
   transport,
@@ -34,7 +35,6 @@ export function createScrollSync({
     const echo = pendingEchoes.get(el);
     if (!echo) return false;
     pendingEchoes.delete(el);
-    if (performance.now() > echo.expires) return false;
     const deltaX = el.scrollLeft - echo.left;
     const deltaY = el.scrollTop - echo.top;
     return Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1;
@@ -102,11 +102,19 @@ export function createScrollSync({
       // No movement means no scroll event will fire, so there is no echo to suppress.
       if (target.scrollTop === prevTop && target.scrollLeft === prevLeft) return;
 
-      pendingEchoes.set(target, {
-        top: target.scrollTop,
-        left: target.scrollLeft,
-        expires: performance.now() + ECHO_TTL_MS,
-      });
+      const echo: ScrollEcho = { top: target.scrollTop, left: target.scrollLeft };
+      pendingEchoes.set(target, echo);
+
+      let frames = ECHO_FRAMES;
+      const expire = () => {
+        if (--frames > 0) {
+          requestAnimationFrame(expire);
+          return;
+        }
+        // Only clear our own entry, not a newer one set by a later message.
+        if (pendingEchoes.get(target) === echo) pendingEchoes.delete(target);
+      };
+      requestAnimationFrame(expire);
     },
   };
 }

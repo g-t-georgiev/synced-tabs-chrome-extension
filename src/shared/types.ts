@@ -81,5 +81,4 @@ export interface Logger {
 export interface ScrollEcho {
   top: number;
   left: number;
-  expires: number;
 }
