@@ -8,6 +8,7 @@ import {
   ratioToScrollOffset,
   scrollOffsetToRatio,
   findScrollableAncestor,
+  afterFrames,
 } from "../dom";
 
 type ScrollSyncKey = Extract<StateConfigKey, "syncScroll">;
@@ -105,16 +106,10 @@ export function createScrollSync({
       const echo: ScrollEcho = { top: target.scrollTop, left: target.scrollLeft };
       pendingEchoes.set(target, echo);
 
-      let frames = ECHO_FRAMES;
-      const expire = () => {
-        if (--frames > 0) {
-          requestAnimationFrame(expire);
-          return;
-        }
+      afterFrames(ECHO_FRAMES, () => {
         // Only clear our own entry, not a newer one set by a later message.
         if (pendingEchoes.get(target) === echo) pendingEchoes.delete(target);
-      };
-      requestAnimationFrame(expire);
+      });
     },
   };
 }
