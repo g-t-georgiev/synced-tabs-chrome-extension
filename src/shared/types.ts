@@ -77,3 +77,9 @@ export interface Logger {
   remote<T extends unknown>(message: T & { type: string; subType: string }): void;
   execute<T extends unknown[]>(label: string, ...details: T): void;
 }
+
+export interface ScrollEcho {
+  top: number;
+  left: number;
+  expires: number;
+}

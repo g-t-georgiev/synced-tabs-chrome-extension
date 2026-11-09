@@ -1,4 +1,4 @@
-import type { Feature, MessageController, StateConfigKey } from "../shared/types";
+import type { Feature, MessageController, ScrollEcho, StateConfigKey } from "../shared/types";
 import { MESSAGE_TYPES } from "../shared/constants";
 import {
   elementAt,
@@ -21,13 +21,24 @@ interface ScrollSyncPayload {
 }
 
 const EVENT_TYPE = "scroll";
+const ECHO_TTL_MS = 100;
 
 export function createScrollSync({
   transport,
 }: {
   transport: MessageController;
 }): Feature<ScrollSyncKey, ScrollSyncPayload> {
-  const pendingEchoes: WeakMap<HTMLElement, Pick<DOMRect, "top" | "left">> = new WeakMap();
+  const pendingEchoes: WeakMap<Element, ScrollEcho> = new WeakMap();
+
+  function isEcho(el: Element) {
+    const echo = pendingEchoes.get(el);
+    if (!echo) return false;
+    pendingEchoes.delete(el);
+    if (performance.now() > echo.expires) return false;
+    const deltaX = el.scrollLeft - echo.left;
+    const deltaY = el.scrollTop - echo.top;
+    return Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1;
+  }
 
   return {
     configKey: "syncScroll",
@@ -39,13 +50,7 @@ export function createScrollSync({
         const isDocument = target instanceof Document;
         const el = isDocument ? document.documentElement : target;
 
-        const echo = pendingEchoes.get(el);
-        if (echo) {
-          pendingEchoes.delete(el);
-          const deltaX = el.scrollLeft - echo.left;
-          const deltaY = el.scrollTop - echo.top;
-          if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return;
-        }
+        if (isEcho(el)) return;
 
         const ratio = scrollOffsetToRatio(el);
         const point = isDocument ? { x: 0.5, y: 0.5 } : elementCenterToRatio(el);
@@ -90,8 +95,18 @@ export function createScrollSync({
       }
 
       const offset = ratioToScrollOffset(target, message.xRatio, message.yRatio);
-      pendingEchoes.set(target, offset);
-      target.scrollTo({ top: offset.top, left: offset.left, behavior: "auto" });
+      const prevTop = target.scrollTop;
+      const prevLeft = target.scrollLeft;
+      target.scrollTo({ top: offset.top, left: offset.left, behavior: "instant" });
+
+      // No movement means no scroll event will fire, so there is no echo to suppress.
+      if (target.scrollTop === prevTop && target.scrollLeft === prevLeft) return;
+
+      pendingEchoes.set(target, {
+        top: target.scrollTop,
+        left: target.scrollLeft,
+        expires: performance.now() + ECHO_TTL_MS,
+      });
     },
   };
 }
