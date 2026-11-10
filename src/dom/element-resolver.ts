@@ -8,8 +8,7 @@ export function findScrollableAncestor(elem?: HTMLElement) {
   while (elem && elem !== document.body) {
     const style = getComputedStyle(elem);
     const canScroll =
-      /(auto|scroll)/.test(style.overflowY) ||
-      /(auto|scroll)/.test(style.overflowX);
+      /(auto|scroll)/.test(style.overflowY) || /(auto|scroll)/.test(style.overflowX);
     const hasYScroll = elem.scrollHeight > elem.clientHeight;
     const hasXScroll = elem.scrollWidth > elem.clientWidth;
 

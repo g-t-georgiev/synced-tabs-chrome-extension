@@ -41,7 +41,7 @@ export function createStore<State extends object>(initialState: State): StateSto
       const change = changes[key];
       if (!change) return;
       const value = change.newValue ?? initialState[key];
-      state[key] = value as State[typeof key]
+      state[key] = value as State[typeof key];
       dirty = true;
     });
 
@@ -53,5 +53,5 @@ export function createStore<State extends object>(initialState: State): StateSto
     ready,
     set,
     subscribe,
-  }
+  };
 }

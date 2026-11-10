@@ -8,7 +8,7 @@ export interface StateStore<State extends object> {
   state: State;
   ready: Promise<State>;
   set<K extends keyof State>(key: K, value: State[K]): Promise<void>;
-  subscribe(listener: (StateChangeSubscriber<State>)): (() => boolean);
+  subscribe(listener: StateChangeSubscriber<State>): () => boolean;
 }
 
 export type StateKey<State extends object> = Extract<keyof State, string>;
@@ -43,20 +43,22 @@ export interface MessagePayload {
   yPoint: number;
 }
 
-export type Message<T = MessagePayload> = T & { action: string; originWindowId: string; };
+export type Message<T = MessagePayload> = T & {
+  action: string;
+  originWindowId: string;
+  /** Sender frame's position in its tab's frame tree (see `getFramePath`). */
+  framePath: string;
+};
 export interface MessageController {
   broadcast<T>(payload: T): void;
-  onRemote<T>(handler: ((message: Message<T>) => void)): (() => void);
+  onRemote<T>(handler: (message: Message<T>) => void): () => void;
 }
 
-export interface Feature<
-  TKey extends PropertyKey = StateConfigKey,
-  TPayload = MessagePayload
-> {
+export interface Feature<TKey extends PropertyKey = StateConfigKey, TPayload = MessagePayload> {
   configKey: TKey;
   handles: MessageType[];
   silent: boolean;
-  capture(): (() => void);
+  capture(): () => void;
   apply(message: Message<TPayload>): any;
 }
 
@@ -77,6 +79,11 @@ export interface CursorController {
 
 export interface Logger {
   initialized(url: string): void;
-  remote<T extends unknown>(message: T & { type: string; subType: string; }): void;
+  remote<T extends unknown>(message: T & { type: string; subType: string }): void;
   execute<T extends unknown[]>(label: string, ...details: T): void;
+}
+
+export interface ScrollEcho {
+  top: number;
+  left: number;
 }

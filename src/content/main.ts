@@ -4,14 +4,14 @@ import {
   createLogger,
   createWindowId,
   createTransport,
-  createSyncEngine
+  createSyncEngine,
 } from "../core";
 import { createPanel, createCursor, createNullUi } from "../ui";
 import {
   createCursorSync,
   createScrollSync,
   createPointerSync,
-  createKeyboardSync
+  createKeyboardSync,
 } from "../features";
 
 export function main() {
@@ -19,9 +19,7 @@ export function main() {
   const logger = createLogger(windowId);
   const config = createStore({ ...DEFAULT_CONFIG });
   const transport = createTransport({ windowId });
-  const ui = window.top === window
-    ? createPanel({ windowId, config })
-    : createNullUi();
+  const ui = window.top === window ? createPanel({ windowId, config }) : createNullUi();
   const cursor = createCursor();
 
   const engine = createSyncEngine({ config, transport, ui, logger });

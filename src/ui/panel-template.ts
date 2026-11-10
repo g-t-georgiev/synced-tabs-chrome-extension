@@ -54,7 +54,7 @@ export function createPanelUICSS() {
       background: #008000;
       color: #fff;
       padding: 4px 8px;
-      font: 12px bold sans-serif;
+      font: bold 12px sans-serif;
       border-radius: 4px;
       opacity: 0.8;
     }
@@ -142,7 +142,13 @@ export function createPanelUICSS() {
   </style>`;
 }
 
-export function createPanelUIHTML({ windowId, config }: { windowId: string, config: StateStore<StateConfig>}) {
+export function createPanelUIHTML({
+  windowId,
+  config,
+}: {
+  windowId: string;
+  config: StateStore<StateConfig>;
+}) {
   return `
   <div class="drag-handle"></div>
 

@@ -1,5 +1,3 @@
 {
-  "recommendations": [
-    "editorconfig.editorconfig"
-  ]
+  "recommendations": ["oxc.oxc-vscode"]
 }

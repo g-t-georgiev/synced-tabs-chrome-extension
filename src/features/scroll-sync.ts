@@ -1,4 +1,4 @@
-import type { Feature, MessageController, StateConfigKey } from "../shared/types";
+import type { Feature, MessageController, ScrollEcho, StateConfigKey } from "../shared/types";
 import { MESSAGE_TYPES } from "../shared/constants";
 import {
   elementAt,
@@ -8,9 +8,9 @@ import {
   ratioToScrollOffset,
   scrollOffsetToRatio,
   findScrollableAncestor,
+  afterFrames,
 } from "../dom";
 
-type TTarget = HTMLElement | Document;
 type ScrollSyncKey = Extract<StateConfigKey, "syncScroll">;
 interface ScrollSyncPayload {
   type: string;
@@ -19,12 +19,64 @@ interface ScrollSyncPayload {
   yRatio: number;
   xPoint: number;
   yPoint: number;
-};
+}
 
 const EVENT_TYPE = "scroll";
+// Echo lifetime represented as rendered frames
+const ECHO_FRAMES = 3;
 
-export function createScrollSync({ transport }: { transport: MessageController }): Feature<ScrollSyncKey, ScrollSyncPayload> {
-  const pendingEchoes: WeakMap<HTMLElement, Pick<DOMRect, "top" | "left">> = new WeakMap();
+export function createScrollSync({
+  transport,
+}: {
+  transport: MessageController;
+}): Feature<ScrollSyncKey, ScrollSyncPayload> {
+  const pendingEchoes: WeakMap<Element, ScrollEcho> = new WeakMap();
+
+  function isEcho(el: Element) {
+    const echo = pendingEchoes.get(el);
+    if (!echo) return false;
+    pendingEchoes.delete(el);
+    const deltaX = el.scrollLeft - echo.left;
+    const deltaY = el.scrollTop - echo.top;
+    return Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1;
+  }
+
+  // Scrolls received while the tab is hidden, replayed once it becomes visible.
+  const deferred: Map<string, ScrollSyncPayload> = new Map();
+
+  function applyScroll(message: ScrollSyncPayload) {
+    let target: HTMLElement | undefined;
+    if (message.isDocument) {
+      target = document.documentElement;
+    } else {
+      const point = ratioToPoint(message.xPoint, message.yPoint);
+      target = elementAt(point.x, point.y);
+      target = findScrollableAncestor(target);
+    }
+
+    const offset = ratioToScrollOffset(target, message.xRatio, message.yRatio);
+    const prevTop = target.scrollTop;
+    const prevLeft = target.scrollLeft;
+    target.scrollTo({ top: offset.top, left: offset.left, behavior: "instant" });
+
+    // No movement means no scroll event will fire, so there is no echo to suppress.
+    if (target.scrollTop === prevTop && target.scrollLeft === prevLeft) return;
+
+    const echo: ScrollEcho = { top: target.scrollTop, left: target.scrollLeft };
+    pendingEchoes.set(target, echo);
+
+    afterFrames(ECHO_FRAMES, () => {
+      // Only clear our own entry, not a newer one set by a later message.
+      if (pendingEchoes.get(target) === echo) pendingEchoes.delete(target);
+    });
+  }
+
+  function onVisibilityChange() {
+    if (document.hidden || deferred.size === 0) return;
+    const pending = [...deferred.values()];
+    deferred.clear();
+    pending.forEach(applyScroll);
+  }
 
   return {
     configKey: "syncScroll",
@@ -32,34 +84,26 @@ export function createScrollSync({ transport }: { transport: MessageController }
     silent: false,
 
     capture() {
-      const broadcast = rAfThrottle(
-        (target: Document | HTMLElement) => {
-          const isDocument = target instanceof Document;
-          const el = isDocument ? document.documentElement : target;
+      const broadcast = rAfThrottle((target: Document | HTMLElement) => {
+        const isDocument = target instanceof Document;
+        const el = isDocument ? document.documentElement : target;
 
-          const echo = pendingEchoes.get(el);
-          if (echo) {
-            pendingEchoes.delete(el);
-            const deltaX = el.scrollLeft - echo.left;
-            const deltaY = el.scrollTop - echo.top;
-            if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return;
-          }
+        if (isEcho(el)) return;
 
-          const ratio = scrollOffsetToRatio(el);
-          const point = isDocument ? { x: 0.5, y: 0.5 } : elementCenterToRatio(el);
+        const ratio = scrollOffsetToRatio(el);
+        const point = isDocument ? { x: 0.5, y: 0.5 } : elementCenterToRatio(el);
 
-          transport.broadcast({
-            type: MESSAGE_TYPES.SCROLL_EVENT,
-            // document/window scroll vs nested overflow container
-            isDocument,
-            xRatio: ratio.x,
-            yRatio: ratio.y,
-            // optional: help target nested scrollers
-            xPoint: point.x,
-            yPoint: point.y,
-          });
-        }
-      );
+        transport.broadcast({
+          type: MESSAGE_TYPES.SCROLL_EVENT,
+          // document/window scroll vs nested overflow container
+          isDocument,
+          xRatio: ratio.x,
+          yRatio: ratio.y,
+          // optional: help target nested scrollers
+          xPoint: point.x,
+          yPoint: point.y,
+        });
+      });
 
       const onScroll = (event: Event) => {
         if (!event.isTrusted) return;
@@ -72,25 +116,31 @@ export function createScrollSync({ transport }: { transport: MessageController }
       };
 
       window.addEventListener(EVENT_TYPE, onScroll, true); // capture: true so nested scroll containers are included
+      document.addEventListener("visibilitychange", onVisibilityChange);
       return () => {
         window.removeEventListener(EVENT_TYPE, onScroll, true);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
         broadcast.cancel();
+        // Don't replay stale scrolls if the feature is turned back on later.
+        deferred.clear();
       };
     },
 
     apply(message) {
-      let target: HTMLElement | undefined;
-      if (message.isDocument) {
-        target = document.documentElement;
-      } else {
-        const point = ratioToPoint(message.xPoint, message.yPoint);
-        target = elementAt(point.x, point.y);
-        target = findScrollableAncestor(target);
+      if (document.hidden) {
+        const key = deferKey(message);
+        // Re-insert so replay order follows arrival order.
+        deferred.delete(key);
+        deferred.set(key, message);
+        return;
       }
-
-      const offset = ratioToScrollOffset(target, message.xRatio, message.yRatio);
-      pendingEchoes.set(target, offset);
-      target.scrollTo({ top: offset.top, left: offset.left, behavior: "auto" });
-    }
+      applyScroll(message);
+    },
   };
+}
+
+// Identifies the scroll container a message targets, so a hidden tab keeps the
+// latest position per container instead of only the latest message overall.
+function deferKey(message: ScrollSyncPayload) {
+  return message.isDocument ? "document" : `${message.xPoint}:${message.yPoint}`;
 }
