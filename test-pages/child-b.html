@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8" />
+<style>
+  body {
+    font: 14px system-ui;
+    margin: 8px;
+    background: #fee;
+  }
+  pre {
+    background: #fff8;
+    height: 90px;
+    overflow: auto;
+    margin: 4px 0;
+  }
+  iframe {
+    width: 95%;
+    height: 160px;
+    border: 2px solid #333;
+    display: block;
+    margin: 6px 0;
+  }
+  .tall {
+    height: 1500px;
+    background: repeating-linear-gradient(#0000 0 48px, #0002 48px 50px);
+  }
+</style>
+<b>child B</b> — framePath <code data-path></code>
+<input placeholder="type here" />
+<pre data-log></pre>
+<iframe src="grandchild.html"></iframe>
+<div class="tall"></div>
+<script src="frame.js"></script>

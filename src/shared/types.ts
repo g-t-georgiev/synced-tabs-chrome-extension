@@ -43,7 +43,12 @@ export interface MessagePayload {
   yPoint: number;
 }
 
-export type Message<T = MessagePayload> = T & { action: string; originWindowId: string };
+export type Message<T = MessagePayload> = T & {
+  action: string;
+  originWindowId: string;
+  /** Sender frame's position in its tab's frame tree (see `getFramePath`). */
+  framePath: string;
+};
 export interface MessageController {
   broadcast<T>(payload: T): void;
   onRemote<T>(handler: (message: Message<T>) => void): () => void;
