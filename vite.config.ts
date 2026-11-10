@@ -15,4 +15,13 @@ export default defineConfig({
       typeCheck: true,
     },
   },
+  staged: {
+    "*": "vp check --fix",
+  },
+  test: {
+    include: ["src/**/*.test.ts"],
+    environment: "happy-dom",
+    restoreMocks: true,
+    unstubGlobals: true,
+  },
 });
