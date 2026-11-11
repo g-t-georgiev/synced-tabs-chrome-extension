@@ -10,7 +10,11 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://localhost/*", "https://frontend-dev.octoplay.dev/*"],
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://frontend-dev.octoplay.dev/*"
+      ],
       "js": ["content.js"],
       "all_frames": true,
       "match_origin_as_fallback": true,

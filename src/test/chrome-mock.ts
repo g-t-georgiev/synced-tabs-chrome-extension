@@ -17,7 +17,10 @@ function createEvent<Args extends unknown[]>() {
  * Stubs the subset of the `chrome` API the extension uses and installs it as a global.
  * `storage.local` is backed by an in-memory record seeded from `stored`.
  */
-export function installChromeMock(stored: Record<string, unknown> = {}) {
+export function installChromeMock(
+  stored: Record<string, unknown> = {},
+  openTabs: Array<Partial<chrome.tabs.Tab>> = [],
+) {
   const data = { ...stored };
 
   const chromeMock = {
@@ -40,6 +43,26 @@ export function installChromeMock(stored: Record<string, unknown> = {}) {
     runtime: {
       sendMessage: vi.fn(async (_message: unknown) => undefined),
       onMessage: createEvent<[any, chrome.runtime.MessageSender?]>(),
+    },
+    tabs: {
+      query: vi.fn(async (_query: chrome.tabs.QueryInfo) => openTabs),
+      get: vi.fn(async (tabId: number) => {
+        const tab = openTabs.find((candidate) => candidate.id === tabId);
+        if (!tab) throw new Error(`No tab with id: ${tabId}`);
+        return tab;
+      }),
+      sendMessage: vi.fn(
+        async (_tabId: number, _message: unknown, _options?: chrome.tabs.MessageSendOptions) =>
+          undefined as unknown,
+      ),
+      onUpdated: createEvent<[number, chrome.tabs.OnUpdatedInfo, Partial<chrome.tabs.Tab>]>(),
+      onRemoved: createEvent<[number, chrome.tabs.OnRemovedInfo?]>(),
+      onReplaced: createEvent<[number, number]>(),
+    },
+    scripting: {
+      executeScript: vi.fn(
+        async (_injection: chrome.scripting.ScriptInjection<unknown[], unknown>) => [],
+      ),
     },
   };
 

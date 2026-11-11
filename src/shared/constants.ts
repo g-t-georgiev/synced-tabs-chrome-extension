@@ -17,4 +17,12 @@ export const DEFAULT_CONFIG = {
   syncCursor: true,
 };
 
-export const TARGET_HOSTS = ["localhost", "frontend-dev.octoplay.dev"];
+/**
+ * Hostnames whose tabs take part in mirroring, on any port (local dev servers move between
+ * 8080, 8081, …). Compared against the parsed URL hostname exactly, never as a substring.
+ */
+export const TARGET_HOSTNAMES: ReadonlySet<string> = new Set([
+  "localhost",
+  "127.0.0.1",
+  "frontend-dev.octoplay.dev",
+]);
