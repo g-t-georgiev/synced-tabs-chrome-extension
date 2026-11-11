@@ -27,7 +27,8 @@ export function main() {
   engine.register(createPointerSync({ transport, logger }));
   engine.register(createKeyboardSync({ transport, logger }));
   engine.register(createScrollSync({ transport }));
-  engine.start();
+  // Listens right away; captures start once stored settings have loaded.
+  void engine.start();
 
   logger.initialized(window.location.href);
 }

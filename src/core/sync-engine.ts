@@ -23,6 +23,10 @@ export function createSyncEngine<State extends object>({
   const features: Feature<keyof State>[] = [];
   const teardowns: (() => any)[] = [];
   const activeCaptures: Map<Feature<keyof State>, () => any> = new Map();
+  /** Remote messages that arrived before stored settings loaded, replayed in order. */
+  const early: Message[] = [];
+  let loaded = false;
+  let running = false;
 
   function syncCaptures(state: State) {
     for (const feature of features) {
@@ -36,6 +40,11 @@ export function createSyncEngine<State extends object>({
         activeCaptures.delete(feature);
       }
     }
+  }
+
+  function receive(message: Message): void {
+    if (loaded) handleRemote(message);
+    else early.push(message);
   }
 
   function handleRemote(message: Message): void {
@@ -70,12 +79,28 @@ export function createSyncEngine<State extends object>({
       feature.handles.forEach((type) => routes.set(type, feature));
       features.push(feature);
     },
-    start() {
+    /**
+     * Listens for remote messages immediately (the background worker re-sends right after
+     * injecting the content script), but starts capturing only once stored settings have
+     * loaded, so a feature the user turned off never captures with its default. Messages
+     * received before then are applied, or dropped, under the loaded settings.
+     */
+    async start() {
+      running = true;
+      teardowns.push(transport.onRemote(receive));
+
+      await config.ready;
+      if (!running) return;
+
+      loaded = true;
+      early.splice(0).forEach(handleRemote);
       syncCaptures(config.state);
       teardowns.push(config.subscribe(syncCaptures));
-      teardowns.push(transport.onRemote(handleRemote));
     },
     stop() {
+      running = false;
+      loaded = false;
+      early.length = 0;
       teardowns.splice(0).forEach((teardown) => teardown());
       activeCaptures.forEach((teardown) => teardown());
       activeCaptures.clear();

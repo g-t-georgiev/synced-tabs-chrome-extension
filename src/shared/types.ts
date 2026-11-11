@@ -66,7 +66,8 @@ export interface Feature<TKey extends PropertyKey = StateConfigKey, TPayload = M
 
 export interface SyncEngine<State extends object = StateConfig> {
   register(feature: Feature<keyof State>): void;
-  start(): void;
+  /** Resolves once stored settings have loaded and captures are running. */
+  start(): Promise<void>;
   stop(): void;
 }
 

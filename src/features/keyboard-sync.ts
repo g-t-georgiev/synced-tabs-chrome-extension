@@ -35,7 +35,8 @@ export function createKeyboardSync({
   transport: MessageController;
   logger: Logger;
 }): Feature<KeyboardSyncKey, KeyboardSyncPayload> {
-  let syncKeyTarget: Element | null = null;
+  /** Element each held key was dispatched to, keyed by `KeyboardEvent.code`. */
+  const keyTargets: Map<string, Element> = new Map();
 
   return {
     configKey: "syncKeyboard",
@@ -64,24 +65,25 @@ export function createKeyboardSync({
     },
 
     apply(message) {
-      if (message.subType === "keydown" || !syncKeyTarget) {
+      const { keyData, subType } = message;
+      // One target per physical key, so overlapping keys (e.g. Shift held while typing)
+      // keep their own target until their own keyup.
+      const id = keyData.code || keyData.key;
+      const fresh = subType === "keydown" && !keyData.repeat;
+      let target = fresh ? undefined : keyTargets.get(id);
+
+      if (!target) {
         const point = ratioToPoint(message.xRatio, message.yRatio);
-        const element = elementAt(point.x, point.y) ?? document.activeElement ?? document.body;
-
-        if (!element) return;
-        syncKeyTarget = element;
-
-        closestHTMLElement(syncKeyTarget)?.focus();
+        target = elementAt(point.x, point.y) ?? document.activeElement ?? document.body;
+        if (!target) return;
+        if (subType === "keydown") closestHTMLElement(target)?.focus();
       }
 
-      if (syncKeyTarget) {
-        logger.execute(message.subType, `[${message.keyData.code}] on:`, syncKeyTarget);
-        dispatchSyntheticKeyboardEvent(syncKeyTarget, message.subType, message.keyData);
-      }
+      if (subType === "keyup") keyTargets.delete(id);
+      else keyTargets.set(id, target);
 
-      if (message.subType !== "keyup") return;
-
-      syncKeyTarget = null;
+      logger.execute(subType, `[${keyData.code}] on:`, target);
+      dispatchSyntheticKeyboardEvent(target, subType, keyData);
     },
   };
 }
