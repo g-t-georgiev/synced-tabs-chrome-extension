@@ -167,6 +167,63 @@ describe("createSyncEngine", () => {
     expect(unsubscribeRemote).toHaveBeenCalledOnce();
   });
 
+  describe("answers to the sender", () => {
+    const drop = {
+      status: "dropped",
+      reason: "viewport-mismatch",
+      viewport: { w: 1, h: 1 },
+    } as const;
+
+    it("answers 'applied' when a feature applies without a result", async () => {
+      const { engine, receive } = setup();
+      engine.register(createFeature("syncA", ["A"]).feature);
+      await engine.start();
+
+      expect(receive("A")).toEqual({ status: "applied" });
+    });
+
+    it("passes a feature's drop through, without the 'received' pulse", async () => {
+      const { engine, receive, ui } = setup();
+      const a = createFeature("syncA", ["A"]);
+      a.apply.mockReturnValue(drop);
+      engine.register(a.feature);
+      await engine.start();
+
+      expect(receive("A")).toEqual(drop);
+      expect(ui.flash).toHaveBeenCalledOnce();
+      expect(ui.pulse).not.toHaveBeenCalled();
+    });
+
+    it("gives no answer for disabled features or unknown types", async () => {
+      const { engine, receive } = setup();
+      engine.register(createFeature("syncB", ["B"]).feature);
+      await engine.start();
+
+      expect(receive("B")).toBeUndefined();
+      expect(receive("UNKNOWN")).toBeUndefined();
+    });
+
+    it("answers early messages once settings load, and nothing if stopped first", async () => {
+      let resolve!: (state: State) => void;
+      const loading = new Promise<State>((done) => (resolve = done));
+      const first = setup({ syncA: true, syncB: false }, loading);
+      first.engine.register(createFeature("syncA", ["A"]).feature);
+      const started = first.engine.start();
+      const pending = first.receive("A");
+
+      resolve({ syncA: true, syncB: false });
+      await started;
+      await expect(pending).resolves.toEqual({ status: "applied" });
+
+      const second = setup({ syncA: true, syncB: false }, new Promise<State>(() => {}));
+      second.engine.register(createFeature("syncA", ["A"]).feature);
+      void second.engine.start();
+      const abandoned = second.receive("A");
+      second.engine.stop();
+      await expect(abandoned).resolves.toBeUndefined();
+    });
+  });
+
   describe("before stored settings load", () => {
     function deferredSetup() {
       let resolve!: (state: State) => void;

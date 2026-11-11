@@ -77,6 +77,85 @@ describe("createTransport: lost extension context", () => {
   });
 });
 
+describe("createTransport: delivery reports", () => {
+  const base = { action: ACTIONS.EXECUTE, originWindowId: "other", framePath: "" };
+  const dropped = {
+    status: "dropped",
+    reason: "viewport-mismatch",
+    viewport: { w: 1280, h: 577 },
+  } as const;
+
+  it("asks for a report only when requested, and shows its drops as toasts", async () => {
+    const chrome = installChromeMock();
+    chrome.runtime.sendMessage.mockResolvedValue({
+      results: [{ tabId: 2, status: "delivered", result: dropped }],
+    });
+    const notifier = stubNotifier();
+    const transport = createTransport({ windowId: "me", notifier });
+
+    transport.broadcast({ type: "POINTER_EVENT" });
+    transport.broadcast({ type: "POINTER_EVENT" }, { report: "Clicks" });
+
+    expect(chrome.runtime.sendMessage.mock.calls[0]![0]).not.toHaveProperty("report");
+    expect(chrome.runtime.sendMessage.mock.calls[1]![0]).toMatchObject({ report: true });
+    await vi.waitFor(() =>
+      expect(notifier.warn).toHaveBeenCalledExactlyOnceWith(
+        expect.stringContaining("Clicks were not mirrored to 1 tab"),
+        { key: "viewport-mismatch:Clicks" },
+      ),
+    );
+  });
+
+  it("answers a remote message with the handler's result", () => {
+    const chrome = installChromeMock();
+    createTransport({ windowId: "me", notifier: stubNotifier() }).onRemote(() => dropped);
+    const sendResponse = vi.fn();
+
+    chrome.runtime.onMessage.fire(base, {}, sendResponse);
+
+    expect(sendResponse).toHaveBeenCalledExactlyOnceWith(dropped);
+  });
+
+  it("answers later when the handler's result is still pending", async () => {
+    const chrome = installChromeMock();
+    let settle!: (value: typeof dropped) => void;
+    createTransport({ windowId: "me", notifier: stubNotifier() }).onRemote(
+      () => new Promise((resolve) => (settle = resolve)),
+    );
+    const sendResponse = vi.fn();
+
+    chrome.runtime.onMessage.fire(base, {}, sendResponse);
+    expect(sendResponse).not.toHaveBeenCalled();
+
+    settle(dropped);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledExactlyOnceWith(dropped));
+  });
+
+  it("keeps the channel open for a pending answer, and only then", () => {
+    const chrome = installChromeMock();
+    const transport = createTransport({ windowId: "me", notifier: stubNotifier() });
+
+    transport.onRemote(() => dropped);
+    transport.onRemote(() => new Promise(() => {}));
+    const [immediate, pending] = chrome.runtime.onMessage.addListener.mock.calls.map(
+      ([listener]) => listener,
+    );
+
+    expect(immediate!(base, {}, vi.fn())).toBeUndefined();
+    expect(pending!(base, {}, vi.fn())).toBe(true);
+  });
+
+  it("frames at a different position stay silent, leaving the answer to the matching frame", () => {
+    const chrome = installChromeMock();
+    createTransport({ windowId: "me", notifier: stubNotifier() }).onRemote(() => dropped);
+    const sendResponse = vi.fn();
+
+    chrome.runtime.onMessage.fire({ ...base, framePath: "0" }, {}, sendResponse);
+
+    expect(sendResponse).not.toHaveBeenCalled();
+  });
+});
+
 describe("createTransport", () => {
   it("broadcast tags the payload with action, window id and frame path", () => {
     const chrome = installChromeMock();
@@ -89,6 +168,7 @@ describe("createTransport", () => {
       action: ACTIONS.BROADCAST,
       originWindowId: "me",
       framePath: "",
+      viewport: { w: window.innerWidth, h: window.innerHeight },
     });
   });
 

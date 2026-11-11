@@ -1,5 +1,7 @@
-import type { MessageController, Notifier } from "../shared/types";
+import type { DeliveryReport, MessageController, Notifier } from "../shared/types";
 import { ACTIONS } from "../shared/constants";
+import { currentViewport } from "../dom/viewport";
+import { describeDrops } from "./delivery-report";
 import { getFramePath } from "./frame-path";
 
 /** Shown when this content script outlives its extension (reloaded or updated). */
@@ -36,14 +38,22 @@ export function createTransport({
     if (isContextInvalidated(err)) onContextLost();
   }
 
+  function showDrops(report: DeliveryReport | undefined, what: string) {
+    if (!report?.results) return;
+    for (const { level, key, text } of describeDrops(report, what, currentViewport())) {
+      notifier[level === "error" ? "error" : "warn"](text, { key });
+    }
+  }
+
   return {
-    broadcast(payload) {
+    broadcast(payload, options = {}) {
       // `runtime.id` disappears once the extension context is invalidated.
       if (!chrome.runtime?.id) {
         onContextLost();
         return;
       }
 
+      const { report } = options;
       try {
         chrome.runtime
           .sendMessage({
@@ -51,21 +61,37 @@ export function createTransport({
             action: ACTIONS.BROADCAST,
             originWindowId: windowId,
             framePath: getFramePath(),
+            viewport: currentViewport(),
+            // Asks the worker to collect each receiver's answer and send them back.
+            ...(report ? { report: true } : {}),
           })
-          .catch(onSendError);
+          .then((answer: DeliveryReport | undefined) => {
+            if (report) showDrops(answer, report);
+          }, onSendError);
       } catch (err) {
         onSendError(err);
       }
     },
     onRemote(handler) {
-      const listener = (message: Parameters<typeof handler>[0]) => {
+      const listener = (
+        message: Parameters<typeof handler>[0],
+        _sender: chrome.runtime.MessageSender,
+        sendResponse: (response?: unknown) => void,
+      ) => {
         if (message.action !== ACTIONS.EXECUTE) return;
         if (message.originWindowId === windowId) return;
         // Ratios and points are relative to the sender's frame, so only the
         // frame at the same position in this tab's frame tree may apply it.
+        // Other frames stay silent, so the answer always comes from this one.
         if (message.framePath !== getFramePath()) return;
 
-        handler(message);
+        const result = handler(message);
+        if (result instanceof Promise) {
+          // Settings still loading: answer once the message has been applied.
+          result.then(sendResponse, () => sendResponse());
+          return true;
+        }
+        sendResponse(result);
       };
 
       chrome.runtime.onMessage.addListener(listener);

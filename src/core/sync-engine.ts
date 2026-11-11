@@ -6,7 +6,11 @@ import type {
   UIController,
   Feature,
   Message,
+  ApplyResult,
+  RemoteResult,
 } from "../shared/types";
+
+const APPLIED: ApplyResult = { status: "applied" };
 
 export function createSyncEngine<State extends object>({
   config,
@@ -24,7 +28,7 @@ export function createSyncEngine<State extends object>({
   const teardowns: (() => any)[] = [];
   const activeCaptures: Map<Feature<keyof State>, () => any> = new Map();
   /** Remote messages that arrived before stored settings loaded, replayed in order. */
-  const early: Message[] = [];
+  const early: Array<{ message: Message; answer: (result: ApplyResult | void) => void }> = [];
   let loaded = false;
   let running = false;
 
@@ -42,19 +46,20 @@ export function createSyncEngine<State extends object>({
     }
   }
 
-  function receive(message: Message): void {
-    if (loaded) handleRemote(message);
-    else early.push(message);
+  function receive(message: Message): RemoteResult {
+    if (loaded) return handleRemote(message);
+    return new Promise((answer) => early.push({ message, answer }));
   }
 
-  function handleRemote(message: Message): void {
+  /** Applies a remote message; the result is the receiver's answer to the sender. */
+  function handleRemote(message: Message): ApplyResult | void {
     const feature = routes.get(message.type);
     if (!feature) return;
 
     const enabled = Boolean(config.state[feature.configKey]);
 
     if (feature.silent) {
-      if (enabled) feature.apply(message);
+      if (enabled) return feature.apply(message) ?? APPLIED;
       return;
     }
 
@@ -63,8 +68,9 @@ export function createSyncEngine<State extends object>({
 
     if (!enabled) return;
 
-    ui.pulse();
-    feature.apply(message);
+    const result = feature.apply(message) ?? APPLIED;
+    if (result.status === "applied") ui.pulse();
+    return result;
   }
 
   return {
@@ -93,14 +99,14 @@ export function createSyncEngine<State extends object>({
       if (!running) return;
 
       loaded = true;
-      early.splice(0).forEach(handleRemote);
+      early.splice(0).forEach(({ message, answer }) => answer(handleRemote(message)));
       syncCaptures(config.state);
       teardowns.push(config.subscribe(syncCaptures));
     },
     stop() {
       running = false;
       loaded = false;
-      early.length = 0;
+      early.splice(0).forEach(({ answer }) => answer());
       teardowns.splice(0).forEach((teardown) => teardown());
       activeCaptures.forEach((teardown) => teardown());
       activeCaptures.clear();

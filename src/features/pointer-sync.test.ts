@@ -38,6 +38,7 @@ describe("createPointerSync", () => {
         button: 2,
         buttons: 2,
       }),
+      { report: "Clicks" },
     );
   });
 
@@ -94,5 +95,44 @@ describe("createPointerSync", () => {
     });
 
     expect(seen).toEqual([1]);
+  });
+});
+
+describe("createPointerSync: window size mismatch", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+  });
+
+  it("drops presses from a sender with a different window size", () => {
+    window.innerWidth = 1280;
+    window.innerHeight = 720;
+    const { feature } = setup();
+    const target = document.createElement("button");
+    document.body.append(target);
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [target],
+    });
+    const seen = vi.fn();
+    target.addEventListener("pointerdown", seen);
+
+    const result = feature.apply({
+      action: ACTIONS.EXECUTE,
+      originWindowId: "other",
+      framePath: "",
+      viewport: { w: 1280, h: 577 },
+      type: MESSAGE_TYPES.POINTER_EVENT,
+      subType: "pointerdown",
+      xRatio: 0.5,
+      yRatio: 0.5,
+    });
+
+    expect(result).toEqual({
+      status: "dropped",
+      reason: "viewport-mismatch",
+      viewport: { w: 1280, h: 720 },
+    });
+    expect(seen).not.toHaveBeenCalled();
   });
 });

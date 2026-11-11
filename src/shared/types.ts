@@ -45,15 +45,55 @@ export interface MessagePayload {
   buttons: number;
 }
 
+/** A frame's viewport size in CSS px (`innerWidth` × `innerHeight`). */
+export interface Viewport {
+  w: number;
+  h: number;
+}
+
 export type Message<T = MessagePayload> = T & {
   action: string;
   originWindowId: string;
   /** Sender frame's position in its tab's frame tree (see `getFramePath`). */
   framePath: string;
+  /** Sender frame's viewport. Absent in messages from older builds. */
+  viewport?: Viewport;
 };
+
+/** What a receiving frame did with a mirrored message. */
+export type ApplyResult =
+  | { status: "applied" }
+  /** Not applied because the position can't be trusted; `viewport` is the receiver's. */
+  | { status: "dropped"; reason: "viewport-mismatch"; viewport: Viewport };
+
+/** What a receiver handler may answer: nothing, a result, or a result later. */
+export type RemoteResult = ApplyResult | void | Promise<ApplyResult | void>;
+
+export type DeliveryStatus = "delivered" | "unreachable";
+
+export interface TabDelivery {
+  tabId: number;
+  status: DeliveryStatus;
+  /** The receiving frame's answer, when it gave one. */
+  result?: ApplyResult;
+}
+
+/** The worker's answer to a broadcast sent with `report`. */
+export interface DeliveryReport {
+  results: TabDelivery[];
+}
+
+export interface BroadcastOptions {
+  /**
+   * Ask every receiver what it did and show drops as toasts in this tab. The value names
+   * what was mirrored, for the toast text: "Clicks" → "Clicks were not mirrored to …".
+   */
+  report?: string;
+}
+
 export interface MessageController {
-  broadcast<T>(payload: T): void;
-  onRemote<T>(handler: (message: Message<T>) => void): () => void;
+  broadcast<T>(payload: T, options?: BroadcastOptions): void;
+  onRemote<T>(handler: (message: Message<T>) => RemoteResult): () => void;
 }
 
 export interface Feature<TKey extends PropertyKey = StateConfigKey, TPayload = MessagePayload> {
@@ -61,7 +101,8 @@ export interface Feature<TKey extends PropertyKey = StateConfigKey, TPayload = M
   handles: MessageType[];
   silent: boolean;
   capture(): () => void;
-  apply(message: Message<TPayload>): any;
+  /** Returns a drop when the message can't be applied here; nothing means applied. */
+  apply(message: Message<TPayload>): ApplyResult | void;
 }
 
 export interface SyncEngine<State extends object = StateConfig> {

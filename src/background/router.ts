@@ -1,17 +1,28 @@
 import { ACTIONS, MESSAGE_TYPES } from "../shared/constants";
+import type { ApplyResult, TabDelivery } from "../shared/types";
 import { isTargetUrl } from "./targets";
 
 export interface BroadcastMessage {
   action: string;
   type: string;
+  /** The sender wants every receiver's answer back (see `DeliveryReport`). */
+  report?: boolean;
   [key: string]: unknown;
 }
 
-export type DeliveryStatus = "delivered" | "unreachable";
+type Delivery = Omit<TabDelivery, "tabId">;
 
-export interface DeliveryResult {
-  tabId: number;
-  status: DeliveryStatus;
+const UNREACHABLE: Delivery = { status: "unreachable" };
+
+/** A receiver's answer, if it is a well-formed `ApplyResult`. */
+function asApplyResult(answer: unknown): ApplyResult | undefined {
+  const status = (answer as Partial<ApplyResult> | undefined)?.status;
+  return status === "applied" || status === "dropped" ? (answer as ApplyResult) : undefined;
+}
+
+function delivered(answer: unknown): Delivery {
+  const result = asApplyResult(answer);
+  return result ? { status: "delivered", result } : { status: "delivered" };
 }
 
 interface TabState {
@@ -60,13 +71,12 @@ export function createRouter() {
     message: BroadcastMessage,
     options: chrome.tabs.MessageSendOptions,
     allowInject: boolean,
-  ): Promise<DeliveryStatus> {
+  ): Promise<Delivery> {
     try {
-      await chrome.tabs.sendMessage(tabId, message, options);
-      return "delivered";
+      return delivered(await chrome.tabs.sendMessage(tabId, message, options));
     } catch {
       const state = tabs.get(tabId);
-      if (!allowInject || !state || state.injectAttempted) return "unreachable";
+      if (!allowInject || !state || state.injectAttempted) return UNREACHABLE;
       state.injectAttempted = true;
     }
 
@@ -77,21 +87,20 @@ export function createRouter() {
       });
     } catch (err) {
       console.warn(`[BACKGROUND] Could not inject into tab ${tabId} until it reloads.`, err);
-      return "unreachable";
+      return UNREACHABLE;
     }
 
     try {
-      await chrome.tabs.sendMessage(tabId, message, options);
-      return "delivered";
+      return delivered(await chrome.tabs.sendMessage(tabId, message, options));
     } catch {
-      return "unreachable";
+      return UNREACHABLE;
     }
   }
 
   async function fanOut(
     message: BroadcastMessage,
     sender: chrome.runtime.MessageSender,
-  ): Promise<DeliveryResult[]> {
+  ): Promise<TabDelivery[]> {
     await ready;
 
     // Top-frame messages only concern top frames, so skip delivering them to iframes.
@@ -104,7 +113,7 @@ export function createRouter() {
     return Promise.all(
       targets.map(async (tabId) => ({
         tabId,
-        status: await deliver(tabId, execute, options, allowInject),
+        ...(await deliver(tabId, execute, options, allowInject)),
       })),
     );
   }

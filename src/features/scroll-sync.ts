@@ -9,6 +9,8 @@ import {
   scrollOffsetToRatio,
   findScrollableAncestor,
   afterFrames,
+  viewportMatches,
+  viewportMismatch,
 } from "../dom";
 
 type ScrollSyncKey = Extract<StateConfigKey, "syncScroll">;
@@ -92,16 +94,21 @@ export function createScrollSync({
         const ratio = scrollOffsetToRatio(el);
         const point = isDocument ? { x: 0.5, y: 0.5 } : elementCenterToRatio(el);
 
-        transport.broadcast({
-          type: MESSAGE_TYPES.SCROLL_EVENT,
-          // document/window scroll vs nested overflow container
-          isDocument,
-          xRatio: ratio.x,
-          yRatio: ratio.y,
-          // optional: help target nested scrollers
-          xPoint: point.x,
-          yPoint: point.y,
-        });
+        transport.broadcast(
+          {
+            type: MESSAGE_TYPES.SCROLL_EVENT,
+            // document/window scroll vs nested overflow container
+            isDocument,
+            xRatio: ratio.x,
+            yRatio: ratio.y,
+            // optional: help target nested scrollers
+            xPoint: point.x,
+            yPoint: point.y,
+          },
+          // Page scrolls are ratio-based and always apply; inner ones are found by
+          // position and can be dropped, so only those are worth a report.
+          isDocument ? undefined : { report: "Scrolls inside panels" },
+        );
       });
 
       const onScroll = (event: Event) => {
@@ -126,6 +133,10 @@ export function createScrollSync({
     },
 
     apply(message) {
+      // Page scrolls are ratios of the scroll range and work at any size; an inner
+      // container is found by position, which a different window size moves.
+      if (!message.isDocument && !viewportMatches(message.viewport)) return viewportMismatch();
+
       if (document.hidden) {
         const key = deferKey(message);
         // Re-insert so replay order follows arrival order.

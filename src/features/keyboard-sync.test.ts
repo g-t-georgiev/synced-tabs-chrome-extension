@@ -134,3 +134,33 @@ describe("createKeyboardSync", () => {
     expect(document.activeElement).toBe(field);
   });
 });
+
+describe("createKeyboardSync: window size mismatch", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+  });
+
+  it("sends keys to the focused element instead of the element at the point", () => {
+    window.innerWidth = 1280;
+    window.innerHeight = 720;
+    const feature = setup();
+    const hit = stubHit();
+    const focused = document.createElement("input");
+    const atPoint = document.createElement("input");
+    document.body.append(focused, atPoint);
+    focused.focus();
+    hit.current = atPoint;
+    const seen: string[] = [];
+    record(focused, seen, "focused");
+    record(atPoint, seen, "atPoint");
+
+    const result = feature.apply({
+      ...keyMessage("keydown", "Space"),
+      viewport: { w: 1100, h: 720 },
+    });
+
+    expect(seen).toEqual(["focused keydown:Space"]);
+    expect(result).toBeUndefined(); // still applied
+  });
+});

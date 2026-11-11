@@ -22,6 +22,8 @@ export function installChromeMock(
   openTabs: Array<Partial<chrome.tabs.Tab>> = [],
 ) {
   const data = { ...stored };
+  const onMessage =
+    createEvent<[any, chrome.runtime.MessageSender, (response?: unknown) => void]>();
 
   const chromeMock = {
     storage: {
@@ -43,8 +45,16 @@ export function installChromeMock(
     runtime: {
       /** Real Chrome clears this once the extension context is invalidated. */
       id: "test-extension" as string | undefined,
-      sendMessage: vi.fn(async (_message: unknown) => undefined),
-      onMessage: createEvent<[any, chrome.runtime.MessageSender?]>(),
+      sendMessage: vi.fn(async (_message: unknown) => undefined as unknown),
+      onMessage: {
+        ...onMessage,
+        /** Like Chrome, always passes a sender and a `sendResponse` (a no-op by default). */
+        fire: (
+          message: any,
+          sender: chrome.runtime.MessageSender = {},
+          sendResponse: (response?: unknown) => void = () => {},
+        ) => onMessage.fire(message, sender, sendResponse),
+      },
     },
     tabs: {
       query: vi.fn(async (_query: chrome.tabs.QueryInfo) => openTabs),

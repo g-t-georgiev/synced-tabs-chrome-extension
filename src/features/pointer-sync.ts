@@ -6,6 +6,8 @@ import {
   ratioToPoint,
   pointToRatio,
   dispatchSyntheticPointerEvent,
+  viewportMatches,
+  viewportMismatch,
 } from "../dom";
 
 type PointerSyncKey = Extract<StateConfigKey, "syncMouse">;
@@ -40,14 +42,18 @@ export function createPointerSync({
 
         const ratio = pointToRatio(event.clientX, event.clientY);
 
-        transport.broadcast({
-          type: MESSAGE_TYPES.POINTER_EVENT,
-          subType: event.type,
-          xRatio: ratio.x,
-          yRatio: ratio.y,
-          button: event.button,
-          buttons: event.buttons,
-        });
+        transport.broadcast(
+          {
+            type: MESSAGE_TYPES.POINTER_EVENT,
+            subType: event.type,
+            xRatio: ratio.x,
+            yRatio: ratio.y,
+            button: event.button,
+            buttons: event.buttons,
+          },
+          // One report per press: up and click are dropped for the same reason as down.
+          event.type === "pointerdown" ? { report: "Clicks" } : undefined,
+        );
       };
 
       EVENT_TYPES.forEach((type) => {
@@ -59,6 +65,9 @@ export function createPointerSync({
     },
 
     apply(message) {
+      // A different window size puts fixed-pixel UI elsewhere: don't click the wrong thing.
+      if (!viewportMatches(message.viewport)) return viewportMismatch();
+
       const point = ratioToPoint(message.xRatio, message.yRatio);
       const element = elementAt(point.x, point.y);
 

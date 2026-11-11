@@ -137,6 +137,21 @@ describe("createRouter", () => {
     expect(chrome.scripting.executeScript).toHaveBeenCalledTimes(2);
   });
 
+  it("includes each receiver's answer, ignoring malformed ones", async () => {
+    const { chrome, router } = await setup();
+    const dropped = { status: "dropped", reason: "viewport-mismatch", viewport: { w: 1, h: 1 } };
+    chrome.tabs.sendMessage.mockImplementation(async (tabId: number) =>
+      tabId === 2 ? dropped : { status: "whatever" },
+    );
+
+    const results = await router.fanOut({ ...click, report: true }, fromTab(1));
+
+    expect(results).toEqual([
+      { tabId: 2, status: "delivered", result: dropped },
+      { tabId: 3, status: "delivered" },
+    ]);
+  });
+
   it("never injects for cursor moves", async () => {
     const { chrome, router } = await setup();
     noReceiver(chrome, 3);

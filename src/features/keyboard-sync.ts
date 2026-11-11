@@ -14,6 +14,7 @@ import {
   rectCenterToRatio,
   buildKeyboardEventData,
   dispatchSyntheticKeyboardEvent,
+  viewportMatches,
 } from "../dom";
 
 type KeyboardSyncKey = Extract<StateConfigKey, "syncKeyboard">;
@@ -73,8 +74,12 @@ export function createKeyboardSync({
       let target = fresh ? undefined : keyTargets.get(id);
 
       if (!target) {
-        const point = ratioToPoint(message.xRatio, message.yRatio);
-        target = elementAt(point.x, point.y) ?? document.activeElement ?? document.body;
+        // With a different window size the point may hit the wrong element, so keys go to
+        // whatever has focus instead (page-level shortcuts like the spin key still work).
+        const point = viewportMatches(message.viewport)
+          ? ratioToPoint(message.xRatio, message.yRatio)
+          : null;
+        target = (point && elementAt(point.x, point.y)) ?? document.activeElement ?? document.body;
         if (!target) return;
         if (subType === "keydown") closestHTMLElement(target)?.focus();
       }
