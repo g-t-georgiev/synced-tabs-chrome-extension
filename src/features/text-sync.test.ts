@@ -223,3 +223,112 @@ describe("createTextSync", () => {
     });
   });
 });
+
+describe("createTextSync: input event details", () => {
+  beforeEach(() => {
+    window.innerWidth = 1280;
+    window.innerHeight = 720;
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  /** Applies `message` to an identical field and returns the events it received. */
+  function receive(overrides: Record<string, unknown>, subType = "input") {
+    const sender = seedField();
+    const field = seedField();
+    stubHit(field);
+    const events: Event[] = [];
+    field.addEventListener("input", (event) => events.push(event));
+    field.addEventListener("change", (event) => events.push(event));
+
+    createTextSync({ transport: transport() }).apply(
+      textMessage(subType, "pasted seed", sender, overrides),
+    );
+    return events;
+  }
+
+  it("sends the InputEvent's inputType and data", () => {
+    const t = transport();
+    const stop = createTextSync({ transport: t }).capture();
+    const field = seedField();
+
+    field.value = "pasted seed";
+    field.dispatchEvent(
+      trusted(
+        new InputEvent("input", {
+          bubbles: true,
+          composed: true,
+          inputType: "insertFromPaste",
+          data: "pasted seed",
+        }),
+      ),
+    );
+    stop();
+
+    expect(t.broadcast.mock.calls[0]![0]).toMatchObject({
+      inputType: "insertFromPaste",
+      data: "pasted seed",
+    });
+  });
+
+  it("fires an InputEvent with the sender's inputType and data", () => {
+    const [event] = receive({ inputType: "insertFromPaste", data: "pasted seed" });
+
+    expect(event).toBeInstanceOf(InputEvent);
+    expect(event).toMatchObject({
+      type: "input",
+      inputType: "insertFromPaste",
+      data: "pasted seed",
+      bubbles: true,
+      composed: true,
+    });
+  });
+
+  // happy-dom turns `data: null` into "" (Chrome keeps null), so data isn't asserted here.
+  it("passes deletions through", () => {
+    const [event] = receive({ inputType: "deleteContentBackward", data: null });
+
+    expect(event).toMatchObject({ inputType: "deleteContentBackward" });
+  });
+
+  it("assumes typing for messages from older builds without inputType", () => {
+    const [event] = receive({});
+
+    expect(event).toBeInstanceOf(InputEvent);
+    expect(event).toMatchObject({ inputType: "insertText" });
+  });
+
+  it("fires change as a plain event that stays inside its shadow root", () => {
+    const [event] = receive({}, "change");
+
+    expect(event).not.toBeInstanceOf(InputEvent);
+    expect(event).toMatchObject({ type: "change", bubbles: true, composed: false });
+  });
+
+  it("fires a plain input event for a <select>, like the browser", () => {
+    const sender = document.createElement("select");
+    sender.className = "tp-lstv_s";
+    for (const value of ["a", "b"]) {
+      const option = document.createElement("option");
+      option.value = value;
+      sender.append(option);
+    }
+    const field = sender.cloneNode(true) as HTMLSelectElement;
+    document.body.append(field);
+    stubRect(sender);
+    stubRect(field);
+    stubHit(field);
+    const events: Event[] = [];
+    field.addEventListener("input", (event) => events.push(event));
+
+    createTextSync({ transport: transport() }).apply(textMessage("input", "b", sender));
+
+    expect(field.value).toBe("b");
+    expect(events).toHaveLength(1);
+    expect(events[0]).not.toBeInstanceOf(InputEvent);
+  });
+});

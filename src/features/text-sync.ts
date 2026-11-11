@@ -24,6 +24,13 @@ interface TextSyncPayload {
   /** The field's box in the sender's viewport, px. */
   rect: FieldRect;
   fingerprint: FieldFingerprint;
+  /**
+   * The sender's `InputEvent` details (`insertText`, `insertFromPaste`,
+   * `deleteContentBackward`, …). Absent when its `input` event wasn't an `InputEvent`
+   * (a `<select>`), for `change`, and in messages from older builds.
+   */
+  inputType?: string;
+  data?: string | null;
 }
 
 const EVENT_TYPES = ["input", "change"] as const;
@@ -65,6 +72,9 @@ export function createTextSync({
             value: field.value,
             rect: fieldRect(field),
             fingerprint: fingerprint(field),
+            ...(event instanceof InputEvent
+              ? { inputType: event.inputType, data: event.data }
+              : {}),
           },
           { report: "Text edits" },
         );
@@ -90,9 +100,27 @@ export function createTextSync({
       }
 
       if (field.value !== message.value) setNativeValue(field, message.value);
-      field.dispatchEvent(
-        new Event(message.subType === "change" ? "change" : "input", { bubbles: true }),
-      );
+      field.dispatchEvent(fieldEvent(message, field));
     },
   };
+}
+
+/**
+ * The event the sender's field fired, as the browser would fire it: edits of text fields are
+ * `InputEvent`s carrying `inputType` and `data`, which page code may read; `<select>` input
+ * and `change` are plain events, and `change` doesn't cross shadow roots.
+ */
+function fieldEvent(message: TextSyncPayload, field: Element): Event {
+  if (message.subType === "change") return new Event("change", { bubbles: true });
+
+  // Older builds didn't send `inputType`: assume typing unless it's a <select>.
+  const isInputEvent = message.inputType !== undefined || !(field instanceof HTMLSelectElement);
+  if (!isInputEvent) return new Event("input", { bubbles: true, composed: true });
+
+  return new InputEvent("input", {
+    bubbles: true,
+    composed: true,
+    inputType: message.inputType ?? "insertText",
+    data: message.data ?? null,
+  });
 }
