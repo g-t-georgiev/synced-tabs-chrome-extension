@@ -41,6 +41,8 @@ export function installChromeMock(
         createEvent<[Record<string, { oldValue?: unknown; newValue?: unknown }>, string]>(),
     },
     runtime: {
+      /** Real Chrome clears this once the extension context is invalidated. */
+      id: "test-extension" as string | undefined,
       sendMessage: vi.fn(async (_message: unknown) => undefined),
       onMessage: createEvent<[any, chrome.runtime.MessageSender?]>(),
     },

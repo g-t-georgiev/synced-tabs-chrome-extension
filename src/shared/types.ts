@@ -86,6 +86,31 @@ export interface Logger {
   execute<T extends unknown[]>(label: string, ...details: T): void;
 }
 
+export type NoticeLevel = "warning" | "error";
+
+export interface NoticeOptions {
+  /**
+   * Identifies a notice so repeats refresh one toast (with a repeat count) instead of
+   * stacking copies. Defaults to the level plus the text.
+   */
+  key?: string;
+  /** How long the toast stays up, from its latest refresh. */
+  durationMs?: number;
+}
+
+/** Shows transient toasts in the tab's top-level viewport, never in other tabs. */
+export interface Notifier {
+  warn(text: string, options?: NoticeOptions): void;
+  error(text: string, options?: NoticeOptions): void;
+}
+
+export interface NoticeMessage {
+  action: string;
+  level: NoticeLevel;
+  text: string;
+  options?: NoticeOptions;
+}
+
 export interface ScrollEcho {
   top: number;
   left: number;

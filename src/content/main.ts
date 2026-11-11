@@ -6,7 +6,14 @@ import {
   createTransport,
   createSyncEngine,
 } from "../core";
-import { createPanel, createCursor, createNullUi } from "../ui";
+import {
+  createPanel,
+  createCursor,
+  createNullUi,
+  createNotifier,
+  createRelayNotifier,
+  listenForRelayedNotices,
+} from "../ui";
 import {
   createCursorSync,
   createScrollSync,
@@ -18,8 +25,12 @@ export function main() {
   const windowId = createWindowId();
   const logger = createLogger(windowId);
   const config = createStore({ ...DEFAULT_CONFIG });
-  const transport = createTransport({ windowId });
-  const ui = window.top === window ? createPanel({ windowId, config }) : createNullUi();
+  const isTop = window.top === window;
+  // Toasts render only in the top frame; child frames relay theirs to it.
+  const notifier = isTop ? createNotifier() : createRelayNotifier();
+  if (isTop) listenForRelayedNotices(notifier);
+  const transport = createTransport({ windowId, notifier });
+  const ui = isTop ? createPanel({ windowId, config }) : createNullUi();
   const cursor = createCursor();
 
   const engine = createSyncEngine({ config, transport, ui, logger });

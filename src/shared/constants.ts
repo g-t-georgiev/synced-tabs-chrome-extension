@@ -1,6 +1,8 @@
 export const ACTIONS = {
   BROADCAST: "BROADCAST_EVENT",
   EXECUTE: "EXECUTE_SYNCED_EVENT",
+  /** A toast raised in a child frame, relayed by the worker to the tab's top frame. */
+  NOTIFY: "SHOW_NOTICE",
 } as const;
 
 export const MESSAGE_TYPES = {

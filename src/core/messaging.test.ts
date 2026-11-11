@@ -1,12 +1,86 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { ACTIONS } from "../shared/constants";
 import { installChromeMock } from "../test/chrome-mock";
-import { createTransport } from "./messaging";
+import { CONTEXT_LOST_NOTICE, createTransport } from "./messaging";
+
+function stubNotifier() {
+  return { warn: vi.fn(), error: vi.fn() };
+}
+
+const INVALIDATED = new Error("Extension context invalidated.");
+
+describe("createTransport: lost extension context", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows an error toast when sending throws because the extension was reloaded", () => {
+    const chrome = installChromeMock();
+    chrome.runtime.sendMessage.mockImplementation(() => {
+      throw INVALIDATED;
+    });
+    const notifier = stubNotifier();
+
+    createTransport({ windowId: "me", notifier }).broadcast({});
+
+    expect(notifier.error).toHaveBeenCalledExactlyOnceWith(CONTEXT_LOST_NOTICE, {
+      key: "context-lost",
+      durationMs: 10_000,
+    });
+  });
+
+  it("shows it when the send is rejected for the same reason", async () => {
+    const chrome = installChromeMock();
+    chrome.runtime.sendMessage.mockRejectedValue(INVALIDATED);
+    const notifier = stubNotifier();
+
+    createTransport({ windowId: "me", notifier }).broadcast({});
+    await vi.waitFor(() => expect(notifier.error).toHaveBeenCalledOnce());
+  });
+
+  it("does not send at all once runtime.id is gone", () => {
+    const chrome = installChromeMock();
+    chrome.runtime.id = undefined;
+    const notifier = stubNotifier();
+
+    createTransport({ windowId: "me", notifier }).broadcast({});
+
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+    expect(notifier.error).toHaveBeenCalledOnce();
+  });
+
+  it("repeats the toast at most every 30 seconds", () => {
+    vi.useFakeTimers();
+    const chrome = installChromeMock();
+    chrome.runtime.id = undefined;
+    const notifier = stubNotifier();
+    const transport = createTransport({ windowId: "me", notifier });
+
+    for (let i = 0; i < 100; i++) transport.broadcast({}); // e.g. cursor frames
+    expect(notifier.error).toHaveBeenCalledOnce();
+
+    vi.advanceTimersByTime(30_000);
+    transport.broadcast({});
+    expect(notifier.error).toHaveBeenCalledTimes(2);
+  });
+
+  it("stays quiet for other send failures", async () => {
+    const chrome = installChromeMock();
+    chrome.runtime.sendMessage.mockRejectedValue(new Error("Receiving end does not exist."));
+    const notifier = stubNotifier();
+
+    createTransport({ windowId: "me", notifier }).broadcast({});
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(notifier.error).not.toHaveBeenCalled();
+  });
+});
 
 describe("createTransport", () => {
   it("broadcast tags the payload with action, window id and frame path", () => {
     const chrome = installChromeMock();
-    const transport = createTransport({ windowId: "me" });
+    const transport = createTransport({ windowId: "me", notifier: stubNotifier() });
 
     transport.broadcast({ type: "KEY_EVENT" });
 
@@ -22,14 +96,16 @@ describe("createTransport", () => {
     const chrome = installChromeMock();
     chrome.runtime.sendMessage.mockRejectedValueOnce(new Error("no receiver"));
 
-    expect(() => createTransport({ windowId: "me" }).broadcast({})).not.toThrow();
+    expect(() =>
+      createTransport({ windowId: "me", notifier: stubNotifier() }).broadcast({}),
+    ).not.toThrow();
     await Promise.resolve();
   });
 
   it("onRemote delivers only execute messages from other windows in the same frame", () => {
     const chrome = installChromeMock();
     const handler = vi.fn();
-    createTransport({ windowId: "me" }).onRemote(handler);
+    createTransport({ windowId: "me", notifier: stubNotifier() }).onRemote(handler);
     const base = { action: ACTIONS.EXECUTE, originWindowId: "other", framePath: "" };
 
     chrome.runtime.onMessage.fire({ ...base, action: ACTIONS.BROADCAST });
@@ -44,7 +120,9 @@ describe("createTransport", () => {
   it("onRemote returns an unsubscribe function", () => {
     const chrome = installChromeMock();
     const handler = vi.fn();
-    const unsubscribe = createTransport({ windowId: "me" }).onRemote(handler);
+    const unsubscribe = createTransport({ windowId: "me", notifier: stubNotifier() }).onRemote(
+      handler,
+    );
 
     unsubscribe();
     chrome.runtime.onMessage.fire({
