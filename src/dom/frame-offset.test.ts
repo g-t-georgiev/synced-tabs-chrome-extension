@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { frameContentOffset } from "./frame-offset";
 
+/**
+ * A stand-in for an `<iframe>` hosting `child`. A real one would make happy-dom try to load
+ * a page once connected (and log a NotSupportedError, since iframe loading is disabled);
+ * the function only reads `contentWindow`, the box and the computed style, so a connected
+ * `<div>` with those set behaves the same.
+ */
 function fakeHost(child: object, left: number, top: number, style: Partial<CSSStyleDeclaration>) {
-  const host = document.createElement("iframe");
+  const host = document.createElement("div") as unknown as HTMLIFrameElement;
   Object.defineProperty(host, "contentWindow", { value: child });
   Object.defineProperty(host, "clientLeft", { value: 2 }); // border width
   Object.defineProperty(host, "clientTop", { value: 3 });
