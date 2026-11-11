@@ -13,6 +13,8 @@ import {
   createNotifier,
   createRelayNotifier,
   listenForRelayedNotices,
+  createRelayCursor,
+  listenForCursorRelays,
 } from "../ui";
 import {
   createCursorSync,
@@ -35,7 +37,10 @@ export function main() {
   // The panel lives in the top frame only.
   const panel = isTop ? createPanel({ windowId, config }) : null;
   const ui = panel ?? createNullUi();
-  const cursor = createCursor();
+  // One ghost cursor, in the top frame. Child frames hand points up to their parent, which
+  // shifts them by the iframe's position, until they reach the top frame.
+  const cursor = isTop ? createCursor() : createRelayCursor();
+  listenForCursorRelays(cursor);
 
   const engine = createSyncEngine({ config, transport, ui, logger });
   engine.register(createCursorSync({ transport, cursor }));

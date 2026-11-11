@@ -158,6 +158,15 @@ export interface CursorController {
   moveTo(x: number, y: number): void;
 }
 
+export interface CursorRelayMessage {
+  action: string;
+  /** Path of the frame the point is relative to (see `getFramePath`). */
+  fromPath: string;
+  /** Point in that frame's viewport, px. */
+  x: number;
+  y: number;
+}
+
 export interface Logger {
   initialized(url: string): void;
   remote<T extends unknown>(message: T & { type: string; subType: string }): void;

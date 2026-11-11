@@ -5,3 +5,4 @@ export * from "./synthetic-events";
 export * from "./after-frames";
 export * from "./viewport";
 export * from "./field-fingerprint";
+export * from "./frame-offset";

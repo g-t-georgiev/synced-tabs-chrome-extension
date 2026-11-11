@@ -3,6 +3,8 @@ export const ACTIONS = {
   EXECUTE: "EXECUTE_SYNCED_EVENT",
   /** A toast raised in a child frame, relayed by the worker to the tab's top frame. */
   NOTIFY: "SHOW_NOTICE",
+  /** A ghost-cursor point climbing from a child frame to its parent, via the worker. */
+  CURSOR_RELAY: "RELAY_CURSOR",
 } as const;
 
 export const MESSAGE_TYPES = {
