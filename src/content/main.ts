@@ -15,6 +15,7 @@ import {
   listenForRelayedNotices,
   createRelayCursor,
   listenForCursorRelays,
+  createFieldHighlight,
 } from "../ui";
 import {
   createCursorSync,
@@ -23,6 +24,7 @@ import {
   createKeyboardSync,
   createPanelSync,
   createTextSync,
+  createTextFocusSync,
 } from "../features";
 
 export function main() {
@@ -48,6 +50,8 @@ export function main() {
   engine.register(createKeyboardSync({ transport, logger }));
   engine.register(createScrollSync({ transport }));
   engine.register(createTextSync({ transport }));
+  // Fields can live in any frame, so each frame draws its own ring over its own fields.
+  engine.register(createTextFocusSync({ transport, highlight: createFieldHighlight() }));
   if (panel) engine.register(createPanelSync({ transport, panel }));
   // Listens right away; captures start once stored settings have loaded.
   void engine.start();

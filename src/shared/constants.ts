@@ -14,6 +14,7 @@ export const MESSAGE_TYPES = {
   SCROLL_EVENT: "SCROLL_EVENT",
   PANEL_DRAG: "PANEL_DRAG",
   TEXT_INPUT: "TEXT_INPUT",
+  TEXT_FOCUS: "TEXT_FOCUS",
 } as const;
 
 export const DEFAULT_CONFIG = {

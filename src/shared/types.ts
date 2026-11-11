@@ -52,6 +52,7 @@ export interface MessagePayload {
   fingerprint: FieldFingerprint;
   inputType: string;
   data: string | null;
+  state: string;
 }
 
 /** A frame's viewport size in CSS px (`innerWidth` × `innerHeight`). */

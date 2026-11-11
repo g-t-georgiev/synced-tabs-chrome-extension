@@ -1,19 +1,15 @@
-import type { ApplyResult, Feature, MessageController, StateConfigKey } from "../shared/types";
+import type { Feature, MessageController, StateConfigKey } from "../shared/types";
 import { MESSAGE_TYPES } from "../shared/constants";
 import {
-  elementAt,
   fieldRect,
   fingerprint,
   isFromOwnUi,
   isValueField,
-  sameField,
-  sameRect,
   setNativeValue,
-  viewportMatches,
-  viewportMismatch,
   type FieldFingerprint,
   type FieldRect,
 } from "../dom";
+import { findIdenticalField, isFound } from "./field-match";
 
 type TextSyncKey = Extract<StateConfigKey, "syncText">;
 interface TextSyncPayload {
@@ -34,7 +30,6 @@ interface TextSyncPayload {
 }
 
 const EVENT_TYPES = ["input", "change"] as const;
-const FIELD_MISMATCH: ApplyResult = { status: "dropped", reason: "field-mismatch" };
 
 /**
  * Mirrors what's in text fields (typing, paste, cut, delete, autofill, undo) by value
@@ -86,18 +81,8 @@ export function createTextSync({
     },
 
     apply(message) {
-      if (!viewportMatches(message.viewport)) return viewportMismatch();
-
-      const { rect } = message;
-      const field = elementAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
-
-      if (
-        !isValueField(field) ||
-        !sameRect(fieldRect(field), rect) ||
-        !sameField(fingerprint(field), message.fingerprint)
-      ) {
-        return FIELD_MISMATCH;
-      }
+      const field = findIdenticalField(message);
+      if (!isFound(field)) return field;
 
       if (field.value !== message.value) setNativeValue(field, message.value);
       field.dispatchEvent(fieldEvent(message, field));
