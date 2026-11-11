@@ -23,6 +23,7 @@ export function createPanel({
     scrollToggle: HTMLInputElement,
     keyToggle: HTMLInputElement,
     cursorToggle: HTMLInputElement,
+    textToggle: HTMLInputElement,
     badge: HTMLElement,
     grabHandle: HTMLElement,
     dragging = false,
@@ -50,6 +51,7 @@ export function createPanel({
   scrollToggle = shadow.querySelector('[id^="sync-scroll-toggle"]')!;
   keyToggle = shadow.querySelector('[id^="sync-key-toggle"]')!;
   cursorToggle = shadow.querySelector('[id^="sync-cursor-toggle"]')!;
+  textToggle = shadow.querySelector('[id^="sync-text-toggle"]')!;
   badge = shadow.querySelector("#sync-extension-badge")!;
   grabHandle = shadow.querySelector(".drag-handle")!;
 
@@ -77,6 +79,7 @@ export function createPanel({
     scrollToggle.addEventListener("change", onChange("syncScroll"));
     keyToggle.addEventListener("change", onChange("syncKeyboard"));
     cursorToggle.addEventListener("change", onChange("syncCursor"));
+    textToggle.addEventListener("change", onChange("syncText"));
 
     // Init dragging logic
     grabHandle.addEventListener("pointerdown", (ev: PointerEvent) => {
@@ -147,6 +150,7 @@ export function createPanel({
     if (keyToggle) keyToggle.checked = config.state.syncKeyboard;
     if (scrollToggle) scrollToggle.checked = config.state.syncScroll;
     if (cursorToggle) cursorToggle.checked = config.state.syncCursor;
+    if (textToggle) textToggle.checked = config.state.syncText;
   }
   /** Handles dragging. */
   function draggingHandler(ev: PointerEvent) {

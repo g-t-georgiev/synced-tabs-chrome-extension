@@ -1,4 +1,5 @@
 import { DEFAULT_CONFIG, MESSAGE_TYPES } from "./constants";
+import type { FieldFingerprint, FieldRect } from "../dom/field-fingerprint";
 
 export type StateConfig = typeof DEFAULT_CONFIG;
 export type StateConfigKey = keyof StateConfig;
@@ -46,6 +47,9 @@ export interface MessagePayload {
   phase: PanelDragPhase;
   left: number;
   top: number;
+  value: string;
+  rect: FieldRect;
+  fingerprint: FieldFingerprint;
 }
 
 /** A frame's viewport size in CSS px (`innerWidth` × `innerHeight`). */
@@ -69,7 +73,9 @@ export type ApplyResult =
   /** Not applied because the position can't be trusted; `viewport` is the receiver's. */
   | { status: "dropped"; reason: "viewport-mismatch"; viewport: Viewport }
   /** A panel drag whose handle isn't under the same point here, so this panel stays put. */
-  | { status: "dropped"; reason: "panel-miss" };
+  | { status: "dropped"; reason: "panel-miss" }
+  /** No identical text field at the same place here, so nothing was written. */
+  | { status: "dropped"; reason: "field-mismatch" };
 
 /** What a receiver handler may answer: nothing, a result, or a result later. */
 export type RemoteResult = ApplyResult | void | Promise<ApplyResult | void>;

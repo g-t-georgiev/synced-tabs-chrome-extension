@@ -49,6 +49,19 @@ export function describeDrops(report: DeliveryReport, what: string, here: Viewpo
     });
   }
 
+  const fieldMismatches = report.results.filter(
+    ({ result }) => result?.status === "dropped" && result.reason === "field-mismatch",
+  ).length;
+  if (fieldMismatches) {
+    notices.push({
+      level: "warning",
+      key: `field-mismatch:${what}`,
+      text:
+        `${what} were not mirrored to ${plural(fieldMismatches, "tab")}: ` +
+        `no identical field in the same place.`,
+    });
+  }
+
   const unreachable = report.results.filter(({ status }) => status === "unreachable").length;
   if (unreachable) {
     notices.push({

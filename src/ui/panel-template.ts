@@ -187,5 +187,12 @@ export function createPanelUIHTML({
       <input type="checkbox" id="sync-key-toggle_${windowId}" ${config.state.syncKeyboard ? "checked" : ""}>
       <span class="toggle-switch-slider"></span>
     </label>
+  </div>
+  <div class="row">
+    <span>Text Fields</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="sync-text-toggle_${windowId}" ${config.state.syncText ? "checked" : ""}>
+      <span class="toggle-switch-slider"></span>
+    </label>
   </div>`;
 }

@@ -11,6 +11,7 @@ export const MESSAGE_TYPES = {
   KEY_EVENT: "KEY_EVENT",
   SCROLL_EVENT: "SCROLL_EVENT",
   PANEL_DRAG: "PANEL_DRAG",
+  TEXT_INPUT: "TEXT_INPUT",
 } as const;
 
 export const DEFAULT_CONFIG = {
@@ -18,6 +19,7 @@ export const DEFAULT_CONFIG = {
   syncScroll: false,
   syncKeyboard: true,
   syncCursor: true,
+  syncText: true,
 };
 
 /**

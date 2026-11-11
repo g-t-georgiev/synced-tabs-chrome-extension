@@ -20,6 +20,7 @@ import {
   createPointerSync,
   createKeyboardSync,
   createPanelSync,
+  createTextSync,
 } from "../features";
 
 export function main() {
@@ -41,6 +42,7 @@ export function main() {
   engine.register(createPointerSync({ transport, logger }));
   engine.register(createKeyboardSync({ transport, logger }));
   engine.register(createScrollSync({ transport }));
+  engine.register(createTextSync({ transport }));
   if (panel) engine.register(createPanelSync({ transport, panel }));
   // Listens right away; captures start once stored settings have loaded.
   void engine.start();

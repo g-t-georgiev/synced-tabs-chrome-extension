@@ -55,6 +55,22 @@ describe("describeDrops", () => {
     ]);
   });
 
+  it("warns when no identical text field was found", () => {
+    const miss: TabDelivery = {
+      tabId: 2,
+      status: "delivered",
+      result: { status: "dropped", reason: "field-mismatch" },
+    };
+
+    expect(describeDrops({ results: [miss] }, "Text edits", here)).toEqual([
+      {
+        level: "warning",
+        key: "field-mismatch:Text edits",
+        text: "Text edits were not mirrored to 1 tab: no identical field in the same place.",
+      },
+    ]);
+  });
+
   it("reports unreachable tabs as an error", () => {
     expect(
       describeDrops(
