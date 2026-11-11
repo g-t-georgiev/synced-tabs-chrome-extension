@@ -41,6 +41,8 @@ export interface MessagePayload {
   yRatio: number;
   xPoint: number;
   yPoint: number;
+  button: number;
+  buttons: number;
 }
 
 export type Message<T = MessagePayload> = T & {

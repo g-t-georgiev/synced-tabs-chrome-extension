@@ -5,7 +5,6 @@ import {
   isFromOwnUi,
   ratioToPoint,
   pointToRatio,
-  isPointerEventSupported,
   dispatchSyntheticPointerEvent,
 } from "../dom";
 
@@ -15,10 +14,12 @@ interface PointerSyncPayload {
   subType: string;
   xRatio: number;
   yRatio: number;
+  /** Absent in messages from a tab still running an older build of the extension. */
+  button?: number;
+  buttons?: number;
 }
 
-const PREFIX = isPointerEventSupported() ? "pointer" : "mouse";
-const EVENT_TYPES = [`${PREFIX}down`, `${PREFIX}up`, "click"] as const;
+const EVENT_TYPES = ["pointerdown", "pointerup", "click"] as const;
 
 export function createPointerSync({
   transport,
@@ -44,6 +45,8 @@ export function createPointerSync({
           subType: event.type,
           xRatio: ratio.x,
           yRatio: ratio.y,
+          button: event.button,
+          buttons: event.buttons,
         });
       };
 
@@ -67,7 +70,11 @@ export function createPointerSync({
         `at (${Math.round(point.x)}px, ${Math.round(point.y)}px) on:`,
         element,
       );
-      dispatchSyntheticPointerEvent(element, point.x, point.y, message.subType);
+      dispatchSyntheticPointerEvent(element, message.subType, point.x, point.y, {
+        // Older senders (before button state was sent) mean a primary-button press.
+        button: message.button ?? 0,
+        buttons: message.buttons ?? (message.subType === "pointerdown" ? 1 : 0),
+      });
     },
   };
 }

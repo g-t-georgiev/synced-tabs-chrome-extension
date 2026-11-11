@@ -1,18 +1,51 @@
 import type { KeyboardEventData } from "../shared/types";
 
-export function isPointerEventSupported() {
-  return "PointerEvent" in window;
+export interface PointerButtons {
+  /** Button that changed state (`MouseEvent.button`): 0 primary, 1 middle, 2 secondary. */
+  button: number;
+  /** Bitmask of buttons held after the event (`MouseEvent.buttons`). */
+  buttons: number;
 }
 
+/** Mouse events a browser fires after the matching pointer event, for older listeners. */
+const COMPAT_MOUSE_EVENTS: Partial<Record<string, string>> = {
+  pointerdown: "mousedown",
+  pointerup: "mouseup",
+};
+
+/** Elements that take focus when pressed, as in the browser's mousedown default action. */
+const FOCUSABLE = [
+  "a[href]",
+  "area[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "iframe",
+  "[tabindex]",
+  '[contenteditable=""]',
+  '[contenteditable="true"]',
+].join(",");
+
+/**
+ * `preventDefault()` on pointerdown suppresses the compatibility mouse events up to and
+ * including the next pointerup (the click itself still fires). One pointer, so one flag.
+ */
+let compatSuppressed = false;
+
+/**
+ * Dispatches one mirrored pointer event (`pointerdown`, `pointerup` or `click`) the way
+ * Chrome fires it for a primary mouse button, followed by its compatibility mouse event.
+ * Pointerdown also moves focus like a real press does.
+ */
 export function dispatchSyntheticPointerEvent(
   element: Element,
+  type: string,
   x: number,
   y: number,
-  specificType: string,
+  { button, buttons }: PointerButtons,
 ) {
-  if (!element) return;
-
-  const eventInit = {
+  const init: PointerEventInit = {
     bubbles: true,
     cancelable: true,
     composed: true,
@@ -21,21 +54,48 @@ export function dispatchSyntheticPointerEvent(
     clientY: y,
     screenX: x + window.screenX,
     screenY: y + window.screenY,
+    button,
+    buttons,
+    pointerId: 1,
+    pointerType: "mouse",
+    isPrimary: true,
+    width: 1,
+    height: 1,
+    pressure: buttons ? 0.5 : 0,
+    // Click count: 1 for click, 0 for the pointer down/up events themselves.
+    detail: type === "click" ? 1 : 0,
   };
 
-  const hasPESupport = isPointerEventSupported();
-  const EventCtor = hasPESupport ? window.PointerEvent : window.MouseEvent;
+  const proceed = element.dispatchEvent(new PointerEvent(type, init));
+  if (type === "pointerdown") compatSuppressed = !proceed;
 
-  if (specificType) {
-    element.dispatchEvent(new EventCtor(specificType, eventInit));
-  } else {
-    element.dispatchEvent(new EventCtor(hasPESupport ? "pointerdown" : "mousedown", eventInit));
-    element.dispatchEvent(new EventCtor(hasPESupport ? "pointerup" : "mouseup", eventInit));
-    element.dispatchEvent(new MouseEvent("click", eventInit));
+  const compat = COMPAT_MOUSE_EVENTS[type];
+  let mouseProceed = true;
+  if (compat && !compatSuppressed) {
+    mouseProceed = element.dispatchEvent(new MouseEvent(compat, { ...init, detail: 1 }));
   }
 
-  // Focus handling is reworked in step 4; keep today's behaviour for HTML and SVG targets.
-  if (element instanceof HTMLElement || element instanceof SVGElement) element.focus();
+  // Focus is the press's default action: it runs after mousedown listeners, and only
+  // cancelling mousedown prevents it (cancelling pointerdown does not).
+  if (type === "pointerdown" && mouseProceed) focusLikeNative(element);
+
+  if (type === "pointerup") compatSuppressed = false;
+}
+
+/**
+ * Focuses the nearest focusable ancestor of the pressed element; pressing anywhere else
+ * blurs the focused element, as clicking empty page space does.
+ */
+function focusLikeNative(element: Element) {
+  const target = element.closest(FOCUSABLE);
+
+  if (target instanceof HTMLElement || target instanceof SVGElement) {
+    target.focus({ preventScroll: true });
+    return;
+  }
+
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active !== document.body) active.blur();
 }
 
 export function dispatchSyntheticKeyboardEvent(

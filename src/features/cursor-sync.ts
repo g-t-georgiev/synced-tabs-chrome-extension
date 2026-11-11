@@ -1,5 +1,5 @@
 import { MESSAGE_TYPES } from "../shared/constants";
-import { pointToRatio, ratioToPoint, rAfThrottle, isPointerEventSupported } from "../dom";
+import { pointToRatio, ratioToPoint, rAfThrottle } from "../dom";
 import type { CursorController, Feature, MessageController, StateConfigKey } from "../shared/types";
 
 type CursorSyncKey = Extract<StateConfigKey, "syncCursor">;
@@ -16,7 +16,7 @@ export function createCursorSync({
   transport: MessageController;
   cursor: CursorController;
 }): Feature<CursorSyncKey, CursorSyncPayload> {
-  const eventType = isPointerEventSupported() ? "pointermove" : "mousemove";
+  const eventType = "pointermove";
 
   return {
     configKey: "syncCursor",
