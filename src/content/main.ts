@@ -19,6 +19,7 @@ import {
   createScrollSync,
   createPointerSync,
   createKeyboardSync,
+  createPanelSync,
 } from "../features";
 
 export function main() {
@@ -30,7 +31,9 @@ export function main() {
   const notifier = isTop ? createNotifier() : createRelayNotifier();
   if (isTop) listenForRelayedNotices(notifier);
   const transport = createTransport({ windowId, notifier });
-  const ui = isTop ? createPanel({ windowId, config }) : createNullUi();
+  // The panel lives in the top frame only.
+  const panel = isTop ? createPanel({ windowId, config }) : null;
+  const ui = panel ?? createNullUi();
   const cursor = createCursor();
 
   const engine = createSyncEngine({ config, transport, ui, logger });
@@ -38,6 +41,7 @@ export function main() {
   engine.register(createPointerSync({ transport, logger }));
   engine.register(createKeyboardSync({ transport, logger }));
   engine.register(createScrollSync({ transport }));
+  if (panel) engine.register(createPanelSync({ transport, panel }));
   // Listens right away; captures start once stored settings have loaded.
   void engine.start();
 

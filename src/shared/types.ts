@@ -43,6 +43,9 @@ export interface MessagePayload {
   yPoint: number;
   button: number;
   buttons: number;
+  phase: PanelDragPhase;
+  left: number;
+  top: number;
 }
 
 /** A frame's viewport size in CSS px (`innerWidth` × `innerHeight`). */
@@ -64,7 +67,9 @@ export type Message<T = MessagePayload> = T & {
 export type ApplyResult =
   | { status: "applied" }
   /** Not applied because the position can't be trusted; `viewport` is the receiver's. */
-  | { status: "dropped"; reason: "viewport-mismatch"; viewport: Viewport };
+  | { status: "dropped"; reason: "viewport-mismatch"; viewport: Viewport }
+  /** A panel drag whose handle isn't under the same point here, so this panel stays put. */
+  | { status: "dropped"; reason: "panel-miss" };
 
 /** What a receiver handler may answer: nothing, a result, or a result later. */
 export type RemoteResult = ApplyResult | void | Promise<ApplyResult | void>;
@@ -115,6 +120,32 @@ export interface SyncEngine<State extends object = StateConfig> {
 export interface UIController {
   flash(): void;
   pulse(): void;
+}
+
+/** Panel host position in viewport px. */
+export interface PanelPosition {
+  left: number;
+  top: number;
+}
+
+export type PanelDragPhase = "start" | "move" | "end";
+
+export type PanelDragListener = (
+  phase: PanelDragPhase,
+  position: PanelPosition,
+  /** Pointer position in viewport px. */
+  point: { x: number; y: number },
+) => void;
+
+/** Part of the panel at a point: its drag handle, a toggle, anything else on it, or none. */
+export type PanelPart = "handle" | "toggle" | "body" | null;
+
+export interface PanelController extends UIController {
+  hitTest(x: number, y: number): PanelPart;
+  getPosition(): PanelPosition;
+  setPosition(position: PanelPosition): void;
+  /** Called for local drags only. Returns an unsubscribe function. */
+  onDrag(listener: PanelDragListener): () => void;
 }
 
 export interface CursorController {

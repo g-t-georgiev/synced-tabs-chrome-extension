@@ -1,4 +1,10 @@
-import type { StateConfig, StateStore, UIController } from "../shared/types";
+import type {
+  PanelController,
+  PanelDragListener,
+  PanelPosition,
+  StateConfig,
+  StateStore,
+} from "../shared/types";
 import { OWN_UI_ATTR } from "../dom";
 import { createPanelUICSS, createPanelUIHTML } from "./panel-template";
 
@@ -11,7 +17,7 @@ export function createPanel({
 }: {
   windowId: string;
   config: StateStore<StateConfig>;
-}): UIController {
+}): PanelController {
   let host: HTMLElement,
     mouseToggle: HTMLInputElement,
     scrollToggle: HTMLInputElement,
@@ -26,6 +32,8 @@ export function createPanel({
     grabOffsetLeft = 0,
     grabInsetTop = 0,
     grabInsetLeft = 0;
+
+  const dragListeners: Set<PanelDragListener> = new Set();
 
   // BUILD IN-PAGE CONTROL PANEL
   host = document.createElement("div");
@@ -51,13 +59,15 @@ export function createPanel({
   if (document.body) init();
   else window.addEventListener("DOMContentLoaded", () => init(), { once: true });
 
-  const onChange = function (key: keyof StateConfig) {
+  // A function declaration, so it exists when `init()` runs straight away (the script was
+  // injected into a page whose <body> already exists).
+  function onChange(key: keyof StateConfig) {
     return function (ev: Event) {
       const target = ev.target as HTMLInputElement;
       const value = target.checked;
       config.set(key, value).catch(() => {});
     };
-  };
+  }
 
   function init() {
     document.body.append(host);
@@ -93,7 +103,42 @@ export function createPanel({
       window.addEventListener("pointerup", dragEndedHandler);
       window.addEventListener("pointercancel", dragEndedHandler);
       window.addEventListener("pointermove", draggingHandler);
+
+      emitDrag("start", { x: ev.clientX, y: ev.clientY });
     });
+  }
+
+  function getPosition(): PanelPosition {
+    const { left, top } = host.getBoundingClientRect();
+    return { left, top };
+  }
+
+  function emitDrag(phase: Parameters<PanelDragListener>[0], point: { x: number; y: number }) {
+    const position = getPosition();
+    dragListeners.forEach((listener) => listener(phase, position, point));
+  }
+
+  /**
+   * Keeps the panel inside the viewport: the drag handle (which sticks out top-left by
+   * `inset`) stays on screen, and so does the panel's bottom-right corner.
+   */
+  function clampPosition(
+    top: number,
+    left: number,
+    bounds: Pick<DOMRect, "width" | "height">,
+    insetTop: number,
+    insetLeft: number,
+  ): PanelPosition {
+    return {
+      top: Math.min(Math.max(top, -insetTop), window.innerHeight - bounds.height),
+      left: Math.min(Math.max(left, -insetLeft), window.innerWidth - bounds.width),
+    };
+  }
+
+  function placeAt({ top, left }: PanelPosition) {
+    host.style.setProperty("top", `${top}px`);
+    host.style.setProperty("left", `${left}px`);
+    host.style.setProperty("right", "auto"); // By default "right" is used in CSS, must override with "auto"
   }
 
   /** Updates UI state. */
@@ -107,28 +152,14 @@ export function createPanel({
   function draggingHandler(ev: PointerEvent) {
     if (!dragging) return;
 
-    let offsetX = ev.clientX - grabOffsetLeft;
-    let offsetY = ev.clientY - grabOffsetTop;
+    const top = ev.clientY - grabOffsetTop - grabInsetTop;
+    const left = ev.clientX - grabOffsetLeft - grabInsetLeft;
 
-    let top = offsetY - grabInsetTop;
-    let left = offsetX - grabInsetLeft;
-
-    // handle top/left >= 0  →  panel >= -inset
-    const minTop = -grabInsetTop; // ≈ 5
-    const minLeft = -grabInsetLeft; // ≈ 5
-
-    const maxTop = window.innerHeight - panelBounds.height;
-    const maxLeft = window.innerWidth - panelBounds.width;
-
-    top = Math.min(Math.max(top, minTop), maxTop);
-    left = Math.min(Math.max(left, minLeft), maxLeft);
-
-    host.style.setProperty("top", `${top}px`);
-    host.style.setProperty("left", `${left}px`);
-    host.style.setProperty("right", "auto"); // By default "right" is used in CSS, must override with "auto"
+    placeAt(clampPosition(top, left, panelBounds, grabInsetTop, grabInsetLeft));
+    emitDrag("move", { x: ev.clientX, y: ev.clientY });
   }
   /** Handles dragging end. */
-  function dragEndedHandler() {
+  function dragEndedHandler(ev: PointerEvent) {
     if (!dragging) return;
 
     dragging = false;
@@ -138,9 +169,39 @@ export function createPanel({
     window.removeEventListener("pointerup", dragEndedHandler);
     window.removeEventListener("pointercancel", dragEndedHandler);
     window.removeEventListener("pointermove", draggingHandler);
+
+    emitDrag("end", { x: ev.clientX, y: ev.clientY });
   }
 
   return {
+    /** What part of this panel is at a viewport point, if any. */
+    hitTest(x, y) {
+      const element = shadow.elementFromPoint(x, y);
+      // Outside the shadow tree means the point is not on this panel.
+      if (!element || (element !== host && !shadow.contains(element))) return null;
+      if (element === grabHandle) return "handle";
+      if (element.closest(".toggle-switch")) return "toggle";
+      return "body";
+    },
+    getPosition,
+    /** Moves the panel, clamped to this viewport like a local drag. */
+    setPosition(position) {
+      const bounds = host.getBoundingClientRect();
+      const handle = grabHandle.getBoundingClientRect();
+      placeAt(
+        clampPosition(
+          position.top,
+          position.left,
+          bounds,
+          handle.top - bounds.top,
+          handle.left - bounds.left,
+        ),
+      );
+    },
+    onDrag(listener) {
+      dragListeners.add(listener);
+      return () => dragListeners.delete(listener);
+    },
     /** Flash badge blue when receiving remote event. Reset styles after {@link BADGE_FLASH_MS} */
     flash() {
       if (!badge) return;

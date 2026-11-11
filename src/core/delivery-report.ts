@@ -11,8 +11,9 @@ const size = ({ w, h }: Viewport) => `${w}×${h}`;
 
 /**
  * Turns the worker's report for one broadcast into the toasts the sender should see:
- * one for tabs that dropped it because their window size differs, one for tabs it could
- * not reach at all. `what` names what was mirrored ("Clicks").
+ * one for tabs that dropped it because their window size differs, one for panels that
+ * didn't follow a drag, one for tabs it could not reach at all. `what` names what was
+ * mirrored ("Clicks").
  */
 export function describeDrops(report: DeliveryReport, what: string, here: Viewport): DropNotice[] {
   const notices: DropNotice[] = [];
@@ -32,6 +33,19 @@ export function describeDrops(report: DeliveryReport, what: string, here: Viewpo
       text:
         `${what} were not mirrored to ${plural(mismatched, "tab")}: window size differs ` +
         `(this tab ${size(here)}, other ${[...sizes].join(", ")}).`,
+    });
+  }
+
+  const panelMisses = report.results.filter(
+    ({ result }) => result?.status === "dropped" && result.reason === "panel-miss",
+  ).length;
+  if (panelMisses) {
+    notices.push({
+      level: "warning",
+      key: `panel-miss:${what}`,
+      text:
+        `The panel in ${plural(panelMisses, "tab")} is in a different place, ` +
+        `so it didn't follow.`,
     });
   }
 

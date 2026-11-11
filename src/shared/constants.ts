@@ -10,6 +10,7 @@ export const MESSAGE_TYPES = {
   POINTER_MOVE: "POINTER_MOVE",
   KEY_EVENT: "KEY_EVENT",
   SCROLL_EVENT: "SCROLL_EVENT",
+  PANEL_DRAG: "PANEL_DRAG",
 } as const;
 
 export const DEFAULT_CONFIG = {

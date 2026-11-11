@@ -39,6 +39,22 @@ describe("describeDrops", () => {
     );
   });
 
+  it("warns when panels elsewhere didn't follow a drag", () => {
+    const miss: TabDelivery = {
+      tabId: 2,
+      status: "delivered",
+      result: { status: "dropped", reason: "panel-miss" },
+    };
+
+    expect(describeDrops({ results: [applied, miss] }, "Panel moves", here)).toEqual([
+      {
+        level: "warning",
+        key: "panel-miss:Panel moves",
+        text: "The panel in 1 tab is in a different place, so it didn't follow.",
+      },
+    ]);
+  });
+
   it("reports unreachable tabs as an error", () => {
     expect(
       describeDrops(
