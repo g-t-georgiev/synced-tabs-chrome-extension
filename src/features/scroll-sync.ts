@@ -50,8 +50,7 @@ export function createScrollSync({
       target = document.documentElement;
     } else {
       const point = ratioToPoint(message.xPoint, message.yPoint);
-      target = elementAt(point.x, point.y);
-      target = findScrollableAncestor(target);
+      target = findScrollableAncestor(elementAt(point.x, point.y));
     }
 
     const offset = ratioToScrollOffset(target, message.xRatio, message.yRatio);

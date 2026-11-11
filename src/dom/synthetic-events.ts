@@ -5,7 +5,7 @@ export function isPointerEventSupported() {
 }
 
 export function dispatchSyntheticPointerEvent(
-  element: HTMLElement,
+  element: Element,
   x: number,
   y: number,
   specificType: string,
@@ -34,11 +34,12 @@ export function dispatchSyntheticPointerEvent(
     element.dispatchEvent(new MouseEvent("click", eventInit));
   }
 
-  if (typeof element.focus === "function") element.focus();
+  // Focus handling is reworked in step 4; keep today's behaviour for HTML and SVG targets.
+  if (element instanceof HTMLElement || element instanceof SVGElement) element.focus();
 }
 
 export function dispatchSyntheticKeyboardEvent(
-  element: HTMLElement,
+  element: Element,
   type: string,
   data: KeyboardEventInit,
 ) {

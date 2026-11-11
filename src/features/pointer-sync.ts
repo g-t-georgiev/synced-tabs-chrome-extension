@@ -2,6 +2,7 @@ import type { Feature, Logger, MessageController, StateConfigKey } from "../shar
 import { MESSAGE_TYPES } from "../shared/constants";
 import {
   elementAt,
+  isFromOwnUi,
   ratioToPoint,
   pointToRatio,
   isPointerEventSupported,
@@ -33,7 +34,8 @@ export function createPointerSync({
 
     capture() {
       const onPointer = (event: MouseEvent) => {
-        if (!event.isTrusted) return;
+        // Clicks on our own panel never become page clicks in other tabs.
+        if (!event.isTrusted || isFromOwnUi(event)) return;
 
         const ratio = pointToRatio(event.clientX, event.clientY);
 
@@ -55,8 +57,9 @@ export function createPointerSync({
 
     apply(message) {
       const point = ratioToPoint(message.xRatio, message.yRatio);
-      const element = elementAt(point.x, point.y, document.body);
+      const element = elementAt(point.x, point.y);
 
+      // Outside this viewport: drop rather than clicking an unrelated fallback like <body>.
       if (!element) return;
 
       logger.execute(

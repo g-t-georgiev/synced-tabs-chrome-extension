@@ -1,4 +1,5 @@
 import type { StateConfig, StateStore, UIController } from "../shared/types";
+import { OWN_UI_ATTR } from "../dom";
 import { createPanelUICSS, createPanelUIHTML } from "./panel-template";
 
 const PULSE_MS = 150;
@@ -29,6 +30,7 @@ export function createPanel({
   // BUILD IN-PAGE CONTROL PANEL
   host = document.createElement("div");
   host.id = "mirror-sync-panel";
+  host.setAttribute(OWN_UI_ATTR, "");
   const shadow = host.attachShadow({ mode: "open" });
   const styles = createPanelUICSS();
   const html = createPanelUIHTML({ windowId, config });

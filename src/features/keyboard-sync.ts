@@ -8,6 +8,8 @@ import type {
 import { MESSAGE_TYPES } from "../shared/constants";
 import {
   elementAt,
+  isFromOwnUi,
+  closestHTMLElement,
   ratioToPoint,
   rectCenterToRatio,
   buildKeyboardEventData,
@@ -33,7 +35,7 @@ export function createKeyboardSync({
   transport: MessageController;
   logger: Logger;
 }): Feature<KeyboardSyncKey, KeyboardSyncPayload> {
-  let syncKeyTarget: HTMLElement | null = null;
+  let syncKeyTarget: Element | null = null;
 
   return {
     configKey: "syncKeyboard",
@@ -42,7 +44,7 @@ export function createKeyboardSync({
 
     capture() {
       const onKey = (event: KeyboardEvent) => {
-        if (!event.isTrusted) return;
+        if (!event.isTrusted || isFromOwnUi(event)) return;
 
         const origin = event.target instanceof Element ? event.target : document.activeElement;
         const rect = origin?.getBoundingClientRect() ?? EMPTY_RECT;
@@ -64,14 +66,12 @@ export function createKeyboardSync({
     apply(message) {
       if (message.subType === "keydown" || !syncKeyTarget) {
         const point = ratioToPoint(message.xRatio, message.yRatio);
-        const fallback =
-          document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
-        const element = elementAt(point.x, point.y, fallback);
+        const element = elementAt(point.x, point.y) ?? document.activeElement ?? document.body;
 
         if (!element) return;
         syncKeyTarget = element;
 
-        if (syncKeyTarget && "focus" in syncKeyTarget) syncKeyTarget.focus();
+        closestHTMLElement(syncKeyTarget)?.focus();
       }
 
       if (syncKeyTarget) {
