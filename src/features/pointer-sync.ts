@@ -8,6 +8,10 @@ import {
   dispatchSyntheticPointerEvent,
   viewportMatches,
   viewportMismatch,
+  anchorAt,
+  resolveAnchor,
+  isWithin,
+  type ElementAnchor,
 } from "../dom";
 
 type PointerSyncKey = Extract<StateConfigKey, "syncMouse">;
@@ -19,6 +23,8 @@ interface PointerSyncPayload {
   /** Absent in messages from a tab still running an older build of the extension. */
   button?: number;
   buttons?: number;
+  /** The element under the pointer, for receivers whose window size differs. */
+  anchor?: ElementAnchor;
 }
 
 const EVENT_TYPES = ["pointerdown", "pointerup", "click"] as const;
@@ -41,6 +47,7 @@ export function createPointerSync({
         if (!event.isTrusted || isFromOwnUi(event)) return;
 
         const ratio = pointToRatio(event.clientX, event.clientY);
+        const target = event.composedPath()[0];
 
         transport.broadcast(
           {
@@ -50,6 +57,9 @@ export function createPointerSync({
             yRatio: ratio.y,
             button: event.button,
             buttons: event.buttons,
+            ...(target instanceof Element
+              ? { anchor: anchorAt(target, event.clientX, event.clientY) }
+              : {}),
           },
           // One report per press: up and click are dropped for the same reason as down.
           event.type === "pointerdown" ? { report: "Clicks" } : undefined,
@@ -65,11 +75,23 @@ export function createPointerSync({
     },
 
     apply(message) {
-      // A different window size puts fixed-pixel UI elsewhere: don't click the wrong thing.
-      if (!viewportMatches(message.viewport)) return viewportMismatch();
+      let point = ratioToPoint(message.xRatio, message.yRatio);
+      let element: Element | null;
 
-      const point = ratioToPoint(message.xRatio, message.yRatio);
-      const element = elementAt(point.x, point.y);
+      if (viewportMatches(message.viewport)) {
+        element = elementAt(point.x, point.y);
+      } else {
+        // A different window size: the ratio-mapped point is right only if the page scales
+        // its layout with the window. Trust it only when the same element is there, and
+        // click at the same spot inside it; fixed-pixel UI that moved is dropped.
+        const resolved = message.anchor ? resolveAnchor(message.anchor, point) : null;
+        if (!resolved) return viewportMismatch();
+
+        point = { x: resolved.x, y: resolved.y };
+        element = elementAt(point.x, point.y);
+        // Something else covers that spot here: don't click it instead.
+        if (!element || !isWithin(element, resolved.element)) return viewportMismatch();
+      }
 
       // Outside this viewport: drop rather than clicking an unrelated fallback like <body>.
       if (!element) return;

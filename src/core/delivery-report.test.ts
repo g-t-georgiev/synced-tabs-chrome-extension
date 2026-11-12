@@ -22,7 +22,7 @@ describe("describeDrops", () => {
       {
         level: "warning",
         key: "viewport-mismatch:Clicks",
-        text: "Clicks were not mirrored to 1 tab: window size differs (this tab 1280×720, other 1280×577).",
+        text: "Clicks were not mirrored to 1 tab: window size differs and the element there doesn't match (this tab 1280×720, other 1280×577).",
       },
     ]);
   });
@@ -35,7 +35,7 @@ describe("describeDrops", () => {
     );
 
     expect(notice!.text).toBe(
-      "Clicks were not mirrored to 3 tabs: window size differs (this tab 1280×720, other 1280×577, 1100×720).",
+      "Clicks were not mirrored to 3 tabs: window size differs and the element there doesn't match (this tab 1280×720, other 1280×577, 1100×720).",
     );
   });
 

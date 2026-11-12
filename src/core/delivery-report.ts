@@ -31,8 +31,8 @@ export function describeDrops(report: DeliveryReport, what: string, here: Viewpo
       level: "warning",
       key: `viewport-mismatch:${what}`,
       text:
-        `${what} were not mirrored to ${plural(mismatched, "tab")}: window size differs ` +
-        `(this tab ${size(here)}, other ${[...sizes].join(", ")}).`,
+        `${what} were not mirrored to ${plural(mismatched, "tab")}: window size differs and ` +
+        `the element there doesn't match (this tab ${size(here)}, other ${[...sizes].join(", ")}).`,
     });
   }
 

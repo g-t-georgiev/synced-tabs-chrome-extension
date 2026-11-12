@@ -332,3 +332,45 @@ describe("createTextSync: input event details", () => {
     expect(events[0]).not.toBeInstanceOf(InputEvent);
   });
 });
+
+describe("createTextSync: different window size", () => {
+  beforeEach(() => {
+    window.innerWidth = 1280; // the sender's window is 1920×1080: everything at 2/3
+    window.innerHeight = 720;
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  const fromBigWindow = { viewport: { w: 1920, h: 1080 } };
+
+  it("writes into the same field when the layout scaled with the window", () => {
+    const sender = seedField();
+    sender.remove();
+    const field = seedField({ left: 66.7, top: 133.3, width: 100, height: 13.3 }); // RECT × 2/3
+    stubHit(field);
+
+    const result = createTextSync({ transport: transport() }).apply(
+      textMessage("input", "seed-123", sender, fromBigWindow),
+    );
+
+    expect(result).toBeUndefined();
+    expect(field.value).toBe("seed-123");
+  });
+
+  it("drops fixed-pixel fields, which don't scale, as a size mismatch", () => {
+    const sender = seedField();
+    const field = seedField(); // same pixel box in the smaller window
+    stubHit(field);
+
+    const result = createTextSync({ transport: transport() }).apply(
+      textMessage("input", "seed-123", sender, fromBigWindow),
+    );
+
+    expect(result).toMatchObject({ status: "dropped", reason: "viewport-mismatch" });
+    expect(field.value).toBe("");
+  });
+});

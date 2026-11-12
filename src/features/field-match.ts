@@ -23,23 +23,43 @@ export interface FieldLocator {
 
 const FIELD_MISMATCH: ApplyResult = { status: "dropped", reason: "field-mismatch" };
 
+/** Box tolerance when windows differ in size: rounding on both sides, after scaling. */
+const SCALED_TOLERANCE_PX = 2;
+
+/** The sender's box mapped into this viewport by the window-size ratio. */
+function scaledRect(rect: FieldRect, sender: Viewport): FieldRect {
+  const sx = window.innerWidth / sender.w;
+  const sy = window.innerHeight / sender.h;
+  return {
+    left: rect.left * sx,
+    top: rect.top * sy,
+    width: rect.width * sx,
+    height: rect.height * sy,
+  };
+}
+
 /**
  * The field in this frame identical to the sender's, or why there is none. Identical means:
- * same window size, a value field on top at the sender field's centre, the same box within
- * 1px, and the same tag, type, id, name, placeholder, aria-label and classes.
+ * a value field on top at the sender field's centre, the same box within 1px, and the same
+ * tag, type, id, name, placeholder, aria-label and classes.
+ *
+ * When the windows differ in size, the sender's box is scaled by the window ratio first
+ * (pages that scale their layout with the window keep fields in proportion), within 2px.
+ * Fixed-pixel UI doesn't scale, so its fields fail the box check and are reported as a
+ * size mismatch.
  */
 export function findIdenticalField(locator: FieldLocator): ValueField | ApplyResult {
-  if (!viewportMatches(locator.viewport)) return viewportMismatch();
-
-  const { rect } = locator;
+  const sameSize = viewportMatches(locator.viewport);
+  const rect = sameSize ? locator.rect : scaledRect(locator.rect, locator.viewport!);
+  const tolerance = sameSize ? 1 : SCALED_TOLERANCE_PX;
   const field = elementAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
 
   if (
     !isValueField(field) ||
-    !sameRect(fieldRect(field), rect) ||
+    !sameRect(fieldRect(field), rect, tolerance) ||
     !sameField(fingerprint(field), locator.fingerprint)
   ) {
-    return FIELD_MISMATCH;
+    return sameSize ? FIELD_MISMATCH : viewportMismatch();
   }
 
   return field;
