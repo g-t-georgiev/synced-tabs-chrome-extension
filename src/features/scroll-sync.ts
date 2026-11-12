@@ -68,7 +68,10 @@ export function createScrollSync({
 
     // A different window size: use the container only if the same one is there.
     const resolved = message.anchor
-      ? resolveAnchor(message.anchor, point, CONTAINER_SEARCH_DEPTH)
+      ? resolveAnchor(message.anchor, point, {
+          sender: message.viewport,
+          searchDepth: CONTAINER_SEARCH_DEPTH,
+        })
       : null;
     return resolved?.element instanceof HTMLElement ? resolved.element : null;
   }

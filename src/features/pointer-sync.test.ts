@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { ACTIONS, MESSAGE_TYPES } from "../shared/constants";
 import type { MessageController } from "../shared/types";
 import { anchorAt, type ElementAnchor } from "../dom";
@@ -232,5 +232,96 @@ describe("createPointerSync: different window size, same element", () => {
     const { feature } = setup();
     expect(feature.apply(press(anchor))).toMatchObject({ reason: "viewport-mismatch" });
     expect(seen).not.toHaveBeenCalled();
+  });
+});
+
+describe("createPointerSync: identity check at the same window size (step 13b)", () => {
+  beforeEach(() => {
+    window.innerWidth = 1280;
+    window.innerHeight = 720;
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  function button(className: string) {
+    const el = document.createElement("button");
+    el.className = className;
+    document.body.append(el);
+    vi.spyOn(el, "getBoundingClientRect").mockReturnValue({
+      left: 600,
+      top: 340,
+      width: 80,
+      height: 40,
+    } as DOMRect);
+    return el;
+  }
+
+  function pressAt(extra: Record<string, unknown>) {
+    return {
+      action: ACTIONS.EXECUTE,
+      originWindowId: "other",
+      framePath: "",
+      viewport: { w: 1280, h: 720 },
+      type: MESSAGE_TYPES.POINTER_EVENT,
+      subType: "pointerdown",
+      xRatio: 0.5,
+      yRatio: 0.5,
+      button: 0,
+      buttons: 1,
+      ...extra,
+    };
+  }
+
+  it("drops a click when another element sits at that spot", () => {
+    const sender = button("spin");
+    const anchor = anchorAt(sender, 640, 360);
+    sender.remove();
+    const other = button("bet");
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [other],
+    });
+    const seen = vi.fn();
+    other.addEventListener("pointerdown", seen);
+
+    const { feature } = setup();
+    expect(feature.apply(pressAt({ anchor }))).toEqual({
+      status: "dropped",
+      reason: "element-mismatch",
+    });
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("clicks the same element", () => {
+    const target = button("spin");
+    const anchor = anchorAt(target, 640, 360);
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [target],
+    });
+    const seen = vi.fn();
+    target.addEventListener("pointerdown", seen);
+
+    const { feature } = setup();
+    expect(feature.apply(pressAt({ anchor }))).toBeUndefined();
+    expect(seen).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the old behaviour for messages from older builds without an anchor", () => {
+    const target = button("bet");
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [target],
+    });
+    const seen = vi.fn();
+    target.addEventListener("pointerdown", seen);
+
+    const { feature } = setup();
+    expect(feature.apply(pressAt({}))).toBeUndefined();
+    expect(seen).toHaveBeenCalledOnce();
   });
 });

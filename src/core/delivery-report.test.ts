@@ -71,6 +71,22 @@ describe("describeDrops", () => {
     ]);
   });
 
+  it("warns when the element at that spot isn't the sender's", () => {
+    const miss: TabDelivery = {
+      tabId: 2,
+      status: "delivered",
+      result: { status: "dropped", reason: "element-mismatch" },
+    };
+
+    expect(describeDrops({ results: [miss] }, "Clicks", here)).toEqual([
+      {
+        level: "warning",
+        key: "element-mismatch:Clicks",
+        text: "Clicks were not mirrored to 1 tab: the element there doesn't match.",
+      },
+    ]);
+  });
+
   it("reports unreachable tabs as an error", () => {
     expect(
       describeDrops(

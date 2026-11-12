@@ -96,7 +96,7 @@ describe("createScrollSync: different window size, same container", () => {
     vi.restoreAllMocks();
   });
 
-  function reelList() {
+  function reelList(width = 300, height = 200) {
     const list = document.createElement("div");
     list.className = "reel-list";
     const item = document.createElement("div");
@@ -106,8 +106,8 @@ describe("createScrollSync: different window size, same container", () => {
     vi.spyOn(list, "getBoundingClientRect").mockReturnValue({
       left: 0,
       top: 0,
-      width: 300,
-      height: 200,
+      width,
+      height,
     } as DOMRect);
     return { list, item };
   }
@@ -116,7 +116,7 @@ describe("createScrollSync: different window size, same container", () => {
     const sender = reelList();
     const anchor = anchorAt(sender.list, 150, 100);
     sender.list.remove();
-    const receiver = reelList();
+    const receiver = reelList(200, 133.3); // the same panel at 2/3 the window size
     Object.defineProperty(document, "elementsFromPoint", {
       configurable: true,
       value: () => [receiver.item],

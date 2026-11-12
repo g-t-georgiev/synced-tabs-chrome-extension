@@ -78,7 +78,9 @@ export type ApplyResult =
   /** A panel drag whose handle isn't under the same point here, so this panel stays put. */
   | { status: "dropped"; reason: "panel-miss" }
   /** No identical text field at the same place here, so nothing was written. */
-  | { status: "dropped"; reason: "field-mismatch" };
+  | { status: "dropped"; reason: "field-mismatch" }
+  /** Same window size, but the element at the point isn't the sender's element. */
+  | { status: "dropped"; reason: "element-mismatch" };
 
 /** What a receiver handler may answer: nothing, a result, or a result later. */
 export type RemoteResult = ApplyResult | void | Promise<ApplyResult | void>;

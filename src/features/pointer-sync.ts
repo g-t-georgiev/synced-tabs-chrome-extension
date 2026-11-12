@@ -1,4 +1,10 @@
-import type { Feature, Logger, MessageController, StateConfigKey } from "../shared/types";
+import type {
+  ApplyResult,
+  Feature,
+  Logger,
+  MessageController,
+  StateConfigKey,
+} from "../shared/types";
 import { MESSAGE_TYPES } from "../shared/constants";
 import {
   elementAt,
@@ -23,11 +29,12 @@ interface PointerSyncPayload {
   /** Absent in messages from a tab still running an older build of the extension. */
   button?: number;
   buttons?: number;
-  /** The element under the pointer, for receivers whose window size differs. */
+  /** The element under the pointer. Absent in messages from older builds. */
   anchor?: ElementAnchor;
 }
 
 const EVENT_TYPES = ["pointerdown", "pointerup", "click"] as const;
+const ELEMENT_MISMATCH: ApplyResult = { status: "dropped", reason: "element-mismatch" };
 
 export function createPointerSync({
   transport,
@@ -76,21 +83,27 @@ export function createPointerSync({
 
     apply(message) {
       let point = ratioToPoint(message.xRatio, message.yRatio);
+      const sameSize = viewportMatches(message.viewport);
       let element: Element | null;
 
-      if (viewportMatches(message.viewport)) {
-        element = elementAt(point.x, point.y);
-      } else {
-        // A different window size: the ratio-mapped point is right only if the page scales
-        // its layout with the window. Trust it only when the same element is there, and
-        // click at the same spot inside it; fixed-pixel UI that moved is dropped.
-        const resolved = message.anchor ? resolveAnchor(message.anchor, point) : null;
-        if (!resolved) return viewportMismatch();
+      if (message.anchor) {
+        // Click only the same element, in the same box (scaled when the window sizes
+        // differ), at the same spot inside it. A different element there (another branch's
+        // layout, a neighbouring row, fixed-pixel UI on a screen that scales differently)
+        // is dropped rather than clicked.
+        const drop = sameSize ? ELEMENT_MISMATCH : viewportMismatch();
+        const resolved = resolveAnchor(message.anchor, point, { sender: message.viewport });
+        if (!resolved) return drop;
 
         point = { x: resolved.x, y: resolved.y };
         element = elementAt(point.x, point.y);
         // Something else covers that spot here: don't click it instead.
-        if (!element || !isWithin(element, resolved.element)) return viewportMismatch();
+        if (!element || !isWithin(element, resolved.element)) return drop;
+      } else if (sameSize) {
+        // An older build sent no anchor: click whatever is at the point, as before.
+        element = elementAt(point.x, point.y);
+      } else {
+        return viewportMismatch();
       }
 
       // Outside this viewport: drop rather than clicking an unrelated fallback like <body>.
