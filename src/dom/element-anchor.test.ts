@@ -67,7 +67,7 @@ describe("element anchors", () => {
   });
 
   it("uses the spot inside the element, so a letterboxed canvas is hit exactly", () => {
-    // 1920×1080 window with a centred 1600×900 canvas; the same layout at 1280×720.
+    // 1920x1080 window with a centred 1600x900 canvas; the same layout at 1280x720.
     const sender = game();
     rectOf(sender.canvas, 160, 90, 1600, 900);
     const anchor = anchorAt(sender.canvas, 560, 315); // a quarter in from the canvas corner
@@ -212,7 +212,7 @@ describe("element anchors: siblings and box (step 13b)", () => {
 
   it("rejects fixed-pixel UI that didn't scale with the window", () => {
     const [button] = tweakpaneRows(1);
-    rectOf(button!, 900, 300, 200, 20); // in a 1920×1080 window
+    rectOf(button!, 900, 300, 200, 20); // in a 1920x1080 window
     const anchor = anchorAt(button!, 1000, 310);
 
     window.innerWidth = 1280; // a 2/3 window: a scaling page would put it at 600, 200
@@ -287,19 +287,19 @@ describe("matchAnchor: why a press doesn't match (step 13d)", () => {
 
   it("gives the expected and found boxes when only the box differs", () => {
     const icon = button("PlayButton_icon");
-    rectOf(icon, 1180, 620, 97, 97); // in a 1280×720 window
+    rectOf(icon, 1180, 620, 97, 97); // in a 1280x720 window
     const anchor = anchorAt(icon, 1228, 668);
 
     window.innerWidth = 1920;
     window.innerHeight = 1080;
-    rectOf(icon, 1748, 870, 120, 120); // the UI didn't grow by 1.5×
+    rectOf(icon, 1748, 870, 120, 120); // the UI didn't grow by 1.5x
     stubHit(icon);
 
     expect(matchAnchor(anchor, { x: 1842, y: 1002 }, { sender: { w: 1280, h: 720 } })).toEqual({
       found: false,
       reason:
-        "box differs: expected 146×146 centred at (1843, 1003) (sender 97×97 ×1.50), " +
-        "found 120×120 centred at (1808, 930) on div.PlayButton_icon:nth-of-type(1)",
+        "box differs: expected 146x146 centred at (1843, 1003) (sender 97x97 x1.50), " +
+        "found 120x120 centred at (1808, 930) on div.PlayButton_icon:nth-of-type(1)",
     });
   });
 
@@ -334,10 +334,10 @@ describe("box check: uniform scaling across aspect ratios (step 13e)", () => {
     return el;
   }
 
-  // The real case from the step 13d log: 1920×1031 → 2560×1271, the UI scaled by ~×1.2.
+  // The real case from the step 13d log: 1920x1031 → 2560x1271, the UI scaled by ~x1.2.
   it("accepts a button the UI scaled uniformly when the aspect ratios differ", () => {
     const icon = playIcon();
-    rectOf(icon, 1758.75, 861.45, 142.5, 141.1); // in the 1920×1031 window
+    rectOf(icon, 1758.75, 861.45, 142.5, 141.1); // in the 1920x1031 window
     const anchor = anchorAt(icon, 1830, 932);
 
     window.innerWidth = 2560;
@@ -351,7 +351,7 @@ describe("box check: uniform scaling across aspect ratios (step 13e)", () => {
 
   it("accepts the same case the other way round", () => {
     const icon = playIcon();
-    rectOf(icon, 2363, 1064, 171, 169); // in the 2560×1271 window
+    rectOf(icon, 2363, 1064, 171, 169); // in the 2560x1271 window
     const anchor = anchorAt(icon, 2448, 1148);
 
     window.innerWidth = 1920;
@@ -370,7 +370,7 @@ describe("box check: uniform scaling across aspect ratios (step 13e)", () => {
 
     window.innerWidth = 2560;
     window.innerHeight = 1271;
-    rectOf(icon, 2345, 1062, 190, 174); // ×1.333 wide, ×1.233 tall
+    rectOf(icon, 2345, 1062, 190, 174); // x1.333 wide, x1.233 tall
     stubHit(icon);
 
     expect(

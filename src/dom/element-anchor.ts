@@ -84,9 +84,9 @@ function sameChain(a: AnchorIdentity[], b: AnchorIdentity[]) {
   );
 }
 
-/** A box's size and centre, for logs: `171×169 centred at (2449, 1149)`. */
+/** A box's size and centre, for logs: `171x169 centred at (2449, 1149)`. */
 function centredText(width: number, height: number, cx: number, cy: number) {
-  return `${Math.round(width)}×${Math.round(height)} centred at (${Math.round(cx)}, ${Math.round(cy)})`;
+  return `${Math.round(width)}x${Math.round(height)} centred at (${Math.round(cx)}, ${Math.round(cy)})`;
 }
 
 /**
@@ -135,13 +135,13 @@ function checkBox(
 
   const scale =
     Math.abs(sx - sy) < 0.005
-      ? `×${sx.toFixed(2)}`
-      : `×${sx.toFixed(2)} wide, ×${sy.toFixed(2)} tall, or uniform ×${low.toFixed(2)}–${high.toFixed(2)}`;
+      ? `x${sx.toFixed(2)}`
+      : `x${sx.toFixed(2)} wide, x${sy.toFixed(2)} tall, or uniform x${low.toFixed(2)}-${high.toFixed(2)}`;
   return {
     ok: centred && (stretched || uniform),
     expected:
       `${centredText(sender.width * sx, sender.height * sy, cx, cy)} ` +
-      `(sender ${Math.round(sender.width)}×${Math.round(sender.height)} ${scale})`,
+      `(sender ${Math.round(sender.width)}x${Math.round(sender.height)} ${scale})`,
   };
 }
 

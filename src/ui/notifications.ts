@@ -112,7 +112,7 @@ export function createNotifier(): Notifier {
     toast.repeats += 1;
     toast.element.className = `toast ${level}`;
     toast.text.textContent = text;
-    toast.count.textContent = toast.repeats > 1 ? `×${toast.repeats}` : "";
+    toast.count.textContent = toast.repeats > 1 ? `x${toast.repeats}` : "";
 
     // (Re)insert as the newest toast, at the bottom of the stack.
     toasts.delete(key);

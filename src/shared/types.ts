@@ -55,7 +55,7 @@ export interface MessagePayload {
   state: string;
 }
 
-/** A frame's viewport size in CSS px (`innerWidth` × `innerHeight`). */
+/** A frame's viewport size in CSS px (`innerWidth` x `innerHeight`). */
 export interface Viewport {
   w: number;
   h: number;

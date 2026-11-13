@@ -76,7 +76,7 @@ export function createPointerSync({
     const sizes =
       sameSize || !message.viewport
         ? ""
-        : ` [sender ${message.viewport.w}×${message.viewport.h}, here ${innerWidth}×${innerHeight}]`;
+        : ` [sender ${message.viewport.w}x${message.viewport.h}, here ${innerWidth}x${innerHeight}]`;
     let element: Element | null;
 
     if (message.anchor) {

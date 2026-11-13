@@ -598,7 +598,7 @@ describe("createPointerSync: drop reasons in the log (step 13d)", () => {
 
     expect(logger.dropped).toHaveBeenCalledWith(
       "pointerdown",
-      expect.stringMatching(/ \[sender 1920×1080, here 1280×720\]$/),
+      expect.stringMatching(/ \[sender 1920x1080, here 1280x720\]$/),
     );
   });
 

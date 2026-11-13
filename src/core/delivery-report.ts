@@ -7,7 +7,7 @@ export interface DropNotice {
 }
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
-const size = ({ w, h }: Viewport) => `${w}×${h}`;
+const size = ({ w, h }: Viewport) => `${w}x${h}`;
 
 /**
  * Turns the worker's report for one broadcast into the toasts the sender should see:

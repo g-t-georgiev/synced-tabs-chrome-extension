@@ -335,7 +335,7 @@ describe("createTextSync: input event details", () => {
 
 describe("createTextSync: different window size", () => {
   beforeEach(() => {
-    window.innerWidth = 1280; // the sender's window is 1920×1080: everything at 2/3
+    window.innerWidth = 1280; // the sender's window is 1920x1080: everything at 2/3
     window.innerHeight = 720;
   });
 
@@ -350,7 +350,7 @@ describe("createTextSync: different window size", () => {
   it("writes into the same field when the layout scaled with the window", () => {
     const sender = seedField();
     sender.remove();
-    const field = seedField({ left: 66.7, top: 133.3, width: 100, height: 13.3 }); // RECT × 2/3
+    const field = seedField({ left: 66.7, top: 133.3, width: 100, height: 13.3 }); // RECT x 2/3
     stubHit(field);
 
     const result = createTextSync({ transport: transport() }).apply(

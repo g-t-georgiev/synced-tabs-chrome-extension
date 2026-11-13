@@ -53,7 +53,7 @@ describe("createNotifier", () => {
     notifier.warn("Size mismatch");
     notifier.warn("Size mismatch");
 
-    expect(toasts()).toEqual([{ level: "warning", text: "Size mismatch", count: "×3" }]);
+    expect(toasts()).toEqual([{ level: "warning", text: "Size mismatch", count: "x3" }]);
   });
 
   it("updates the text of a keyed notice in place", () => {
@@ -62,7 +62,7 @@ describe("createNotifier", () => {
     notifier.warn("1 tab differs", { key: "mismatch" });
     notifier.warn("2 tabs differ", { key: "mismatch" });
 
-    expect(toasts()).toEqual([{ level: "warning", text: "2 tabs differ", count: "×2" }]);
+    expect(toasts()).toEqual([{ level: "warning", text: "2 tabs differ", count: "x2" }]);
   });
 
   it("dismisses after its duration, counted from the latest refresh", () => {

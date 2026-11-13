@@ -32,7 +32,7 @@ function mount() {
   const host = document.getElementById("mirror-sync-panel")!;
   const shadow = host.shadowRoot!;
   const handle = shadow.querySelector<HTMLElement>(".drag-handle")!;
-  // Panel 150×100 at (800, 10); the handle sticks out 5px up and left.
+  // Panel 150x100 at (800, 10); the handle sticks out 5px up and left.
   stubRect(host, 800, 10, 150, 100);
   stubRect(handle, 795, 5, 10, 10);
   return { panel, host, shadow, handle };
