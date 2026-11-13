@@ -31,10 +31,25 @@ interface PointerSyncPayload {
   buttons?: number;
   /** The element under the pointer. Absent in messages from older builds. */
   anchor?: ElementAnchor;
+  /**
+   * On `click`: whether the sender's click landed on the element it pressed (the browser
+   * otherwise clicks an element containing both). Absent in messages from older builds.
+   */
+  samePress?: boolean;
 }
 
-const EVENT_TYPES = ["pointerdown", "pointerup", "click"] as const;
+const EVENT_TYPES = ["pointerdown", "pointerup", "pointercancel", "click"] as const;
 const ELEMENT_MISMATCH: ApplyResult = { status: "dropped", reason: "element-mismatch" };
+
+type Point = { x: number; y: number };
+
+/**
+ * The receiver's decision for the press in progress, made on its `pointerdown`: either the
+ * element it pressed, or the reason it dropped the press.
+ */
+type Press =
+  | { element: Element; point: Point; released: boolean }
+  | { dropped: ApplyResult | undefined };
 
 export function createPointerSync({
   transport,
@@ -43,18 +58,79 @@ export function createPointerSync({
   transport: MessageController;
   logger: Logger;
 }): Feature<PointerSyncKey, PointerSyncPayload> {
+  let press: Press | null = null;
+
+  /**
+   * The element to dispatch at, found like a real click would: the same element as the
+   * sender's (same identity, same box, scaled when the window sizes differ), at the same
+   * spot inside it. A different element there is a drop, never a click on something else.
+   */
+  function resolve(
+    message: PointerSyncPayload & { viewport?: { w: number; h: number } },
+  ): { element: Element; point: Point } | { dropped: ApplyResult | undefined } {
+    let point = ratioToPoint(message.xRatio, message.yRatio);
+    const sameSize = viewportMatches(message.viewport);
+    let element: Element | null;
+
+    if (message.anchor) {
+      const drop = sameSize ? ELEMENT_MISMATCH : viewportMismatch();
+      const resolved = resolveAnchor(message.anchor, point, { sender: message.viewport });
+      if (!resolved) return { dropped: drop };
+
+      point = { x: resolved.x, y: resolved.y };
+      element = elementAt(point.x, point.y);
+      // Something else covers that spot here: don't click it instead.
+      if (!element || !isWithin(element, resolved.element)) return { dropped: drop };
+    } else if (sameSize) {
+      // An older build sent no anchor: click whatever is at the point, as before.
+      element = elementAt(point.x, point.y);
+    } else {
+      return { dropped: viewportMismatch() };
+    }
+
+    // Outside this viewport: drop rather than clicking an unrelated fallback like <body>.
+    if (!element) return { dropped: undefined };
+    return { element, point };
+  }
+
+  function dispatch(
+    element: Element,
+    type: string,
+    point: Point,
+    message: Pick<PointerSyncPayload, "button" | "buttons">,
+  ) {
+    logger.execute(type, `at (${Math.round(point.x)}px, ${Math.round(point.y)}px) on:`, element);
+    dispatchSyntheticPointerEvent(element, type, point.x, point.y, {
+      // Older senders (before button state was sent) mean a primary-button press.
+      button: message.button ?? 0,
+      buttons: message.buttons ?? (type === "pointerdown" ? 1 : 0),
+    });
+  }
+
+  /** Releases a press left held down (mouse sync turned off mid-press). */
+  function cancelHeldPress() {
+    if (press && "element" in press && !press.released && press.element.isConnected) {
+      dispatch(press.element, "pointercancel", press.point, { button: 0, buttons: 0 });
+    }
+    press = null;
+  }
+
   return {
     configKey: "syncMouse",
     handles: [MESSAGE_TYPES.POINTER_EVENT],
     silent: false,
 
     capture() {
+      /** What this tab pressed, to tell receivers whether its click landed on it. */
+      let pressed: EventTarget | null = null;
+
       const onPointer = (event: MouseEvent) => {
         // Clicks on our own panel never become page clicks in other tabs.
         if (!event.isTrusted || isFromOwnUi(event)) return;
 
         const ratio = pointToRatio(event.clientX, event.clientY);
-        const target = event.composedPath()[0];
+        const target = event.composedPath()[0] ?? null;
+        if (event.type === "pointerdown") pressed = target;
 
         transport.broadcast(
           {
@@ -67,10 +143,13 @@ export function createPointerSync({
             ...(target instanceof Element
               ? { anchor: anchorAt(target, event.clientX, event.clientY) }
               : {}),
+            ...(event.type === "click" ? { samePress: target === pressed } : {}),
           },
-          // One report per press: up and click are dropped for the same reason as down.
+          // One report per press: the receiver decides the whole press on pointerdown.
           event.type === "pointerdown" ? { report: "Clicks" } : undefined,
         );
+
+        if (event.type === "click") pressed = null;
       };
 
       EVENT_TYPES.forEach((type) => {
@@ -78,47 +157,62 @@ export function createPointerSync({
       });
       return () => {
         EVENT_TYPES.forEach((type) => window.removeEventListener(type, onPointer, true));
+        cancelHeldPress();
       };
     },
 
     apply(message) {
-      let point = ratioToPoint(message.xRatio, message.yRatio);
-      const sameSize = viewportMatches(message.viewport);
-      let element: Element | null;
+      const { subType } = message;
 
-      if (message.anchor) {
-        // Click only the same element, in the same box (scaled when the window sizes
-        // differ), at the same spot inside it. A different element there (another branch's
-        // layout, a neighbouring row, fixed-pixel UI on a screen that scales differently)
-        // is dropped rather than clicked.
-        const drop = sameSize ? ELEMENT_MISMATCH : viewportMismatch();
-        const resolved = resolveAnchor(message.anchor, point, { sender: message.viewport });
-        if (!resolved) return drop;
-
-        point = { x: resolved.x, y: resolved.y };
-        element = elementAt(point.x, point.y);
-        // Something else covers that spot here: don't click it instead.
-        if (!element || !isWithin(element, resolved.element)) return drop;
-      } else if (sameSize) {
-        // An older build sent no anchor: click whatever is at the point, as before.
-        element = elementAt(point.x, point.y);
-      } else {
-        return viewportMismatch();
+      if (subType === "pointerdown") {
+        // A new press replaces any earlier one; its pointerup or click may never come.
+        const target = resolve(message);
+        if ("dropped" in target) {
+          press = target;
+          return target.dropped;
+        }
+        press = { ...target, released: false };
+        dispatch(target.element, subType, target.point, message);
+        return;
       }
 
-      // Outside this viewport: drop rather than clicking an unrelated fallback like <body>.
-      if (!element) return;
+      // pointerup, pointercancel and click follow the pointerdown's decision, so a button
+      // is never pressed without being released, or clicked when its press was dropped.
+      const current = press;
 
-      logger.execute(
-        message.subType,
-        `at (${Math.round(point.x)}px, ${Math.round(point.y)}px) on:`,
-        element,
-      );
-      dispatchSyntheticPointerEvent(element, message.subType, point.x, point.y, {
-        // Older senders (before button state was sent) mean a primary-button press.
-        button: message.button ?? 0,
-        buttons: message.buttons ?? (message.subType === "pointerdown" ? 1 : 0),
-      });
+      if (current && "dropped" in current) {
+        if (subType === "click") press = null;
+        return current.dropped;
+      }
+
+      if (current && (subType === "pointerup" || subType === "pointercancel")) {
+        if (!current.element.isConnected) {
+          press = null;
+          return;
+        }
+        // Like pointer capture: the release goes to the pressed element, even if it changed
+        // its look (pressed state) or the pointer moved off it.
+        const sameSize = viewportMatches(message.viewport);
+        const point = sameSize ? ratioToPoint(message.xRatio, message.yRatio) : current.point;
+        dispatch(current.element, subType, point, message);
+        if (subType === "pointercancel") press = null;
+        else current.released = true;
+        return;
+      }
+
+      if (current && subType === "click" && message.samePress !== false) {
+        press = null;
+        if (!current.element.isConnected) return;
+        dispatch(current.element, subType, current.point, message);
+        return;
+      }
+
+      // A click that landed elsewhere than the press (the browser picks an element
+      // containing both), or an event whose pointerdown never arrived: check it on its own.
+      if (subType === "click") press = null;
+      const target = resolve(message);
+      if ("dropped" in target) return target.dropped;
+      dispatch(target.element, subType, target.point, message);
     },
   };
 }

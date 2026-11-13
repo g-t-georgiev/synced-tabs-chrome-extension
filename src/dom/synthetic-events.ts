@@ -79,7 +79,8 @@ export function dispatchSyntheticPointerEvent(
   // cancelling mousedown prevents it (cancelling pointerdown does not).
   if (type === "pointerdown" && mouseProceed) focusLikeNative(element);
 
-  if (type === "pointerup") compatSuppressed = false;
+  // The press is over either way: released, or interrupted.
+  if (type === "pointerup" || type === "pointercancel") compatSuppressed = false;
 }
 
 /**

@@ -325,3 +325,194 @@ describe("createPointerSync: identity check at the same window size (step 13b)",
     expect(seen).toHaveBeenCalledOnce();
   });
 });
+
+describe("createPointerSync: one decision per press (step 13c)", () => {
+  beforeEach(() => {
+    window.innerWidth = 1280;
+    window.innerHeight = 720;
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  /** A spin button whose look changes while pressed, like the game's. */
+  function spinButton(className = "PlayButton_icon") {
+    const el = document.createElement("div");
+    el.className = className;
+    document.body.append(el);
+    vi.spyOn(el, "getBoundingClientRect").mockReturnValue({
+      left: 1180,
+      top: 620,
+      width: 80,
+      height: 80,
+    } as DOMRect);
+    return el;
+  }
+
+  function hitOnly(el: Element) {
+    Object.defineProperty(document, "elementsFromPoint", { configurable: true, value: () => [el] });
+  }
+
+  function message(subType: string, anchor: ElementAnchor, extra: Record<string, unknown> = {}) {
+    return {
+      action: ACTIONS.EXECUTE,
+      originWindowId: "other",
+      framePath: "",
+      viewport: { w: 1280, h: 720 },
+      type: MESSAGE_TYPES.POINTER_EVENT,
+      subType,
+      xRatio: 1220 / 1280,
+      yRatio: 660 / 720,
+      button: 0,
+      buttons: subType === "pointerdown" ? 1 : 0,
+      anchor,
+      ...extra,
+    };
+  }
+
+  function record(el: Element) {
+    const seen: string[] = [];
+    for (const type of [
+      "pointerdown",
+      "mousedown",
+      "pointerup",
+      "mouseup",
+      "pointercancel",
+      "click",
+    ]) {
+      el.addEventListener(type, () => seen.push(type));
+    }
+    return seen;
+  }
+
+  /** Anchors for the sender's press: normal on down, pressed look on up and click. */
+  function senderPress() {
+    const button = spinButton();
+    const down = anchorAt(button, 1220, 660);
+    button.classList.add("PlayButton_pressed");
+    const up = anchorAt(button, 1220, 660);
+    button.remove();
+    return { down, up };
+  }
+
+  it("releases and clicks the pressed element even if its look changed meanwhile", () => {
+    const { down, up } = senderPress();
+    const receiver = spinButton();
+    hitOnly(receiver);
+    const seen = record(receiver);
+    const { feature } = setup();
+
+    expect(feature.apply(message("pointerdown", down))).toBeUndefined();
+    expect(feature.apply(message("pointerup", up))).toBeUndefined();
+    expect(feature.apply(message("click", up, { samePress: true }))).toBeUndefined();
+
+    expect(seen).toEqual(["pointerdown", "mousedown", "pointerup", "mouseup", "click"]);
+  });
+
+  it("drops the whole press when its pointerdown is dropped", () => {
+    const { down } = senderPress();
+    const receiver = spinButton("Other_button");
+    hitOnly(receiver);
+    const seen = record(receiver);
+    const { feature } = setup();
+
+    const dropped = feature.apply(message("pointerdown", down));
+    // Even an up and click whose own anchors would match here are not applied.
+    const own = anchorAt(receiver, 1220, 660);
+    expect(feature.apply(message("pointerup", own))).toEqual(dropped);
+    expect(feature.apply(message("click", own, { samePress: true }))).toEqual(dropped);
+
+    expect(dropped).toMatchObject({ reason: "element-mismatch" });
+    expect(seen).toEqual([]);
+  });
+
+  it("checks a click on its own when the sender released elsewhere", () => {
+    const panel = document.createElement("div");
+    panel.className = "controls";
+    document.body.append(panel);
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({
+      left: 1100,
+      top: 600,
+      width: 180,
+      height: 120,
+    } as DOMRect);
+    const { down } = senderPress();
+    const receiver = spinButton();
+    hitOnly(receiver);
+    const panelClicks = vi.fn();
+    panel.addEventListener("click", panelClicks);
+    const seen = record(receiver);
+    const { feature } = setup();
+
+    feature.apply(message("pointerdown", down));
+    feature.apply(message("pointerup", down));
+    // The browser clicked the container holding both elements, not the pressed one.
+    const result = feature.apply(
+      message("click", anchorAt(panel, 1220, 660), { samePress: false }),
+    );
+
+    expect(seen).toEqual(["pointerdown", "mousedown", "pointerup", "mouseup"]);
+    expect(result).toMatchObject({ reason: "element-mismatch" }); // the container isn't at the spot
+    expect(panelClicks).not.toHaveBeenCalled();
+  });
+
+  it("mirrors pointercancel to the pressed element", () => {
+    const { down } = senderPress();
+    const receiver = spinButton();
+    hitOnly(receiver);
+    const seen = record(receiver);
+    const { feature } = setup();
+
+    feature.apply(message("pointerdown", down));
+    feature.apply(message("pointercancel", down));
+
+    expect(seen).toEqual(["pointerdown", "mousedown", "pointercancel"]);
+  });
+
+  it("releases a held press when mouse sync is turned off", () => {
+    const { down } = senderPress();
+    const receiver = spinButton();
+    hitOnly(receiver);
+    const seen = record(receiver);
+    const { feature } = setup();
+    const stop = feature.capture();
+
+    feature.apply(message("pointerdown", down));
+    stop();
+
+    expect(seen).toEqual(["pointerdown", "mousedown", "pointercancel"]);
+  });
+
+  it("sends pointercancel, and whether a click landed on the pressed element", () => {
+    const { transport, feature } = setup();
+    const stop = feature.capture();
+    const button = spinButton();
+    const other = spinButton("Other_button");
+    const fire = (el: Element, type: string) =>
+      el.dispatchEvent(trusted(new PointerEvent(type, { bubbles: true, composed: true })));
+
+    fire(button, "pointerdown");
+    fire(button, "pointerup");
+    fire(button, "click");
+    fire(button, "pointerdown");
+    fire(other, "click");
+    fire(button, "pointercancel");
+    stop();
+
+    const sent = transport.broadcast.mock.calls.map(([payload]) => [
+      payload.subType,
+      payload.samePress,
+    ]);
+    expect(sent).toEqual([
+      ["pointerdown", undefined],
+      ["pointerup", undefined],
+      ["click", true],
+      ["pointerdown", undefined],
+      ["click", false],
+      ["pointercancel", undefined],
+    ]);
+  });
+});
