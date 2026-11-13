@@ -33,7 +33,7 @@ function keyMessage(subType: string, code: string, repeat = false) {
 
 function setup() {
   const transport = { broadcast: vi.fn(), onRemote: vi.fn() } satisfies MessageController;
-  const logger = { initialized: vi.fn(), remote: vi.fn(), execute: vi.fn() };
+  const logger = { initialized: vi.fn(), remote: vi.fn(), execute: vi.fn(), dropped: vi.fn() };
   return createKeyboardSync({ transport, logger });
 }
 

@@ -6,7 +6,7 @@ import { createPointerSync } from "./pointer-sync";
 
 function setup() {
   const transport = { broadcast: vi.fn(), onRemote: vi.fn() } satisfies MessageController;
-  const logger = { initialized: vi.fn(), remote: vi.fn(), execute: vi.fn() };
+  const logger = { initialized: vi.fn(), remote: vi.fn(), execute: vi.fn(), dropped: vi.fn() };
   const feature = createPointerSync({ transport, logger });
   return { transport, feature };
 }
@@ -514,5 +514,102 @@ describe("createPointerSync: one decision per press (step 13c)", () => {
       ["click", false],
       ["pointercancel", undefined],
     ]);
+  });
+});
+
+describe("createPointerSync: drop reasons in the log (step 13d)", () => {
+  beforeEach(() => {
+    window.innerWidth = 1280;
+    window.innerHeight = 720;
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  function element(className: string) {
+    const el = document.createElement("div");
+    el.className = className;
+    document.body.append(el);
+    vi.spyOn(el, "getBoundingClientRect").mockReturnValue({
+      left: 1180,
+      top: 620,
+      width: 80,
+      height: 80,
+    } as DOMRect);
+    return el;
+  }
+
+  function message(
+    subType: string,
+    anchor: ElementAnchor | undefined,
+    viewport = { w: 1280, h: 720 },
+  ) {
+    return {
+      action: ACTIONS.EXECUTE,
+      originWindowId: "other",
+      framePath: "",
+      viewport,
+      type: MESSAGE_TYPES.POINTER_EVENT,
+      subType,
+      xRatio: 1220 / 1280,
+      yRatio: 660 / 720,
+      ...(anchor ? { anchor } : {}),
+    };
+  }
+
+  function setupWithLog() {
+    const transport = { broadcast: vi.fn(), onRemote: vi.fn() } satisfies MessageController;
+    const logger = { initialized: vi.fn(), remote: vi.fn(), execute: vi.fn(), dropped: vi.fn() };
+    return { feature: createPointerSync({ transport, logger }), logger };
+  }
+
+  it("logs why a press was dropped, then that its release and click followed it", () => {
+    const sender = element("PlayButton_icon");
+    const anchor = anchorAt(sender, 1220, 660);
+    sender.remove();
+    const other = element("PlayButton_glow");
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: () => [other],
+    });
+    const { feature, logger } = setupWithLog();
+
+    feature.apply(message("pointerdown", anchor));
+    feature.apply(message("pointerup", anchor));
+    feature.apply(message("click", anchor));
+
+    expect(logger.dropped.mock.calls).toEqual([
+      ["pointerdown", expect.stringContaining("identity differs at level 0, classes")],
+      ["pointerup", "its pointerdown was dropped"],
+      ["click", "its pointerdown was dropped"],
+    ]);
+  });
+
+  it("adds both window sizes when they differ", () => {
+    const sender = element("PlayButton_icon");
+    const anchor = anchorAt(sender, 1220, 660);
+    Object.defineProperty(document, "elementsFromPoint", { configurable: true, value: () => [] });
+    const { feature, logger } = setupWithLog();
+
+    feature.apply(message("pointerdown", anchor, { w: 1920, h: 1080 }));
+
+    expect(logger.dropped).toHaveBeenCalledWith(
+      "pointerdown",
+      expect.stringMatching(/ \[sender 1920×1080, here 1280×720\]$/),
+    );
+  });
+
+  it("explains drops of anchorless messages from older builds", () => {
+    const { feature, logger } = setupWithLog();
+
+    feature.apply(message("pointerdown", undefined, { w: 1920, h: 1080 }));
+
+    expect(logger.dropped).toHaveBeenCalledWith(
+      "pointerdown",
+      expect.stringContaining("the sender sent no anchor (older build)"),
+    );
   });
 });

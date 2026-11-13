@@ -176,6 +176,8 @@ export interface Logger {
   initialized(url: string): void;
   remote<T extends unknown>(message: T & { type: string; subType: string }): void;
   execute<T extends unknown[]>(label: string, ...details: T): void;
+  /** A received event that was not applied, with why (for diagnosing drops). */
+  dropped<T extends unknown[]>(label: string, reason: string, ...details: T): void;
 }
 
 export type NoticeLevel = "warning" | "error";

@@ -39,7 +39,7 @@ function setup(
     }),
   };
   const ui = { flash: vi.fn(), pulse: vi.fn() };
-  const logger = { initialized: vi.fn(), remote: vi.fn(), execute: vi.fn() };
+  const logger = { initialized: vi.fn(), remote: vi.fn(), execute: vi.fn(), dropped: vi.fn() };
 
   const engine = createSyncEngine({ config, transport, ui, logger });
   const receive = (type: string) =>

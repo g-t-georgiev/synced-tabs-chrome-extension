@@ -15,8 +15,9 @@ import {
   viewportMatches,
   viewportMismatch,
   anchorAt,
-  resolveAnchor,
+  matchAnchor,
   isWithin,
+  describeElement,
   type ElementAnchor,
 } from "../dom";
 
@@ -47,9 +48,10 @@ type Point = { x: number; y: number };
  * The receiver's decision for the press in progress, made on its `pointerdown`: either the
  * element it pressed, or the reason it dropped the press.
  */
-type Press =
-  | { element: Element; point: Point; released: boolean }
-  | { dropped: ApplyResult | undefined };
+type Press = { element: Element; point: Point; released: boolean } | Dropped;
+
+/** A drop: the answer for the sender (nothing for off-screen points) and why, for the log. */
+type Dropped = { dropped: ApplyResult | undefined; why: string };
 
 export function createPointerSync({
   transport,
@@ -67,30 +69,45 @@ export function createPointerSync({
    */
   function resolve(
     message: PointerSyncPayload & { viewport?: { w: number; h: number } },
-  ): { element: Element; point: Point } | { dropped: ApplyResult | undefined } {
+  ): { element: Element; point: Point } | Dropped {
     let point = ratioToPoint(message.xRatio, message.yRatio);
     const sameSize = viewportMatches(message.viewport);
+    // Both window sizes, when they differ: the first thing to check when diagnosing a drop.
+    const sizes =
+      sameSize || !message.viewport
+        ? ""
+        : ` [sender ${message.viewport.w}×${message.viewport.h}, here ${innerWidth}×${innerHeight}]`;
     let element: Element | null;
 
     if (message.anchor) {
       const drop = sameSize ? ELEMENT_MISMATCH : viewportMismatch();
-      const resolved = resolveAnchor(message.anchor, point, { sender: message.viewport });
-      if (!resolved) return { dropped: drop };
+      const match = matchAnchor(message.anchor, point, { sender: message.viewport });
+      if (!match.found) return { dropped: drop, why: match.reason + sizes };
 
-      point = { x: resolved.x, y: resolved.y };
+      point = { x: match.x, y: match.y };
       element = elementAt(point.x, point.y);
+      if (!element) return { dropped: drop, why: `nothing at the matched spot${sizes}` };
       // Something else covers that spot here: don't click it instead.
-      if (!element || !isWithin(element, resolved.element)) return { dropped: drop };
+      if (!isWithin(element, match.element)) {
+        return { dropped: drop, why: `covered by ${describeElement(element)}${sizes}` };
+      }
     } else if (sameSize) {
       // An older build sent no anchor: click whatever is at the point, as before.
       element = elementAt(point.x, point.y);
     } else {
-      return { dropped: viewportMismatch() };
+      return {
+        dropped: viewportMismatch(),
+        why: `window size differs and the sender sent no anchor (older build)${sizes}`,
+      };
     }
 
     // Outside this viewport: drop rather than clicking an unrelated fallback like <body>.
-    if (!element) return { dropped: undefined };
+    if (!element) return { dropped: undefined, why: "outside this viewport" };
     return { element, point };
+  }
+
+  function logDrop(type: string, drop: Dropped) {
+    logger.dropped(type, drop.why);
   }
 
   function dispatch(
@@ -169,6 +186,7 @@ export function createPointerSync({
         const target = resolve(message);
         if ("dropped" in target) {
           press = target;
+          logDrop(subType, target);
           return target.dropped;
         }
         press = { ...target, released: false };
@@ -182,6 +200,7 @@ export function createPointerSync({
 
       if (current && "dropped" in current) {
         if (subType === "click") press = null;
+        logDrop(subType, { ...current, why: "its pointerdown was dropped" });
         return current.dropped;
       }
 
@@ -211,7 +230,10 @@ export function createPointerSync({
       // containing both), or an event whose pointerdown never arrived: check it on its own.
       if (subType === "click") press = null;
       const target = resolve(message);
-      if ("dropped" in target) return target.dropped;
+      if ("dropped" in target) {
+        logDrop(subType, target);
+        return target.dropped;
+      }
       dispatch(target.element, subType, target.point, message);
     },
   };

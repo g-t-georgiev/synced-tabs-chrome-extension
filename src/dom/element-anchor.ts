@@ -84,16 +84,20 @@ function sameChain(a: AnchorIdentity[], b: AnchorIdentity[]) {
   );
 }
 
-/** Whether `actual` is the sender's box, scaled to this viewport, within the tolerance. */
-function sameBox(actual: DOMRect, sender: FieldRect, from: Viewport | undefined) {
+/** The sender's box, scaled to this viewport by the window-size ratio. */
+function expectedBox(sender: FieldRect, from: Viewport | undefined): FieldRect {
   const sx = from ? window.innerWidth / from.w : 1;
   const sy = from ? window.innerHeight / from.h : 1;
-  const expected = {
+  return {
     left: sender.left * sx,
     top: sender.top * sy,
     width: sender.width * sx,
     height: sender.height * sy,
   };
+}
+
+/** Whether `actual` is the `expected` box within the tolerance. */
+function sameBox(actual: FieldRect, expected: FieldRect) {
   const tolX = Math.max(BOX_TOLERANCE_PX, expected.width * BOX_TOLERANCE_RATIO);
   const tolY = Math.max(BOX_TOLERANCE_PX, expected.height * BOX_TOLERANCE_RATIO);
   return (
@@ -125,8 +129,98 @@ export function anchorAt(target: Element, x: number, y: number): ElementAnchor {
   };
 }
 
+const round = (value: number) => Math.round(value);
+const boxText = ({ left, top, width, height }: FieldRect) =>
+  `${round(width)}×${round(height)} at (${round(left)}, ${round(top)})`;
+
+/** A short CSS-like name for an element or identity: `div#id.class:nth-of-type(2)`. */
+function identityText(identity: FieldFingerprint & { index?: number }) {
+  const id = identity.id ? `#${identity.id}` : "";
+  const classes = identity.classes.map((cls) => `.${cls}`).join("");
+  const nth = typeof identity.index === "number" ? `:nth-of-type(${identity.index + 1})` : "";
+  return `${identity.tag.toLowerCase()}${id}${classes}${nth}`;
+}
+
+/** A short CSS-like name for an element, for logs. */
+export function describeElement(el: Element): string {
+  return identityText({ ...fingerprint(el), index: indexOfType(el) });
+}
+
+const IDENTITY_FIELDS = ["tag", "type", "id", "name", "placeholder", "ariaLabel"] as const;
+
+/** The first difference between two identity chains, innermost first, for logs. */
+function chainDifference(found: AnchorIdentity[], expected: AnchorIdentity[]): string {
+  for (let level = 0; level < Math.min(found.length, expected.length); level++) {
+    const a = found[level]!;
+    const b = expected[level]!;
+    for (const field of IDENTITY_FIELDS) {
+      if (a[field] !== b[field]) return `at level ${level}, ${field}: ${a[field]} vs ${b[field]}`;
+    }
+    if (a.classes.join(" ") !== b.classes.join(" ")) {
+      return `at level ${level}, classes: [${a.classes.join(" ")}] vs [${b.classes.join(" ")}]`;
+    }
+    if (typeof b.index === "number" && a.index !== b.index) {
+      return `at level ${level}, position among siblings: ${a.index + 1} vs ${b.index + 1}`;
+    }
+  }
+  return `chain length: ${found.length} vs ${expected.length}`;
+}
+
+export type AnchorMatch =
+  | { found: true; element: Element; x: number; y: number }
+  /** `reason` says why, for logs: nothing there, identity differs, or box differs. */
+  | { found: false; reason: string };
+
 /**
- * Finds the anchored element near `approx` (the sender's point mapped by window ratio) and
+ * Like {@link resolveAnchor}, but explains a miss: the first identity difference of the
+ * element hit, or the expected and found boxes when the identity matched.
+ */
+export function matchAnchor(
+  anchor: ElementAnchor,
+  approx: { x: number; y: number },
+  { sender, searchDepth = SEARCH_DEPTH }: { sender?: Viewport; searchDepth?: number } = {},
+): AnchorMatch {
+  const hit = elementAt(approx.x, approx.y);
+  if (!hit) return { found: false, reason: `nothing at (${round(approx.x)}, ${round(approx.y)})` };
+
+  let candidate: Element | null = hit;
+  for (let depth = 0; candidate && depth <= searchDepth; depth++) {
+    if (sameChain(identityChain(candidate), anchor.chain)) {
+      const rect = candidate.getBoundingClientRect();
+      // Same identity but elsewhere or another size: a different control, or fixed-pixel UI
+      // on a screen that scales differently. No other element up the chain can match.
+      if (anchor.rect) {
+        const expected = expectedBox(anchor.rect, sender);
+        if (!sameBox(rect, expected)) {
+          return {
+            found: false,
+            reason:
+              `box differs: expected ${boxText(expected)}, found ${boxText(rect)} ` +
+              `on ${describeElement(candidate)}`,
+          };
+        }
+      }
+      return {
+        found: true,
+        element: candidate,
+        x: rect.left + anchor.rx * rect.width,
+        y: rect.top + anchor.ry * rect.height,
+      };
+    }
+    candidate = parentOf(candidate);
+  }
+
+  const expected = anchor.chain[0] ? identityText(anchor.chain[0]) : "(empty chain)";
+  return {
+    found: false,
+    reason:
+      `identity differs ${chainDifference(identityChain(hit), anchor.chain)} ` +
+      `(hit ${describeElement(hit)}, expected ${expected})`,
+  };
+}
+
+/**
+ * Finds the anchored element near ` (the sender's point mapped by window ratio) and
  * returns the point at the same fractions inside it, or `null` when no element there (or
  * up to `searchDepth` levels above it) has the same identity chain and box. `sender` is the
  * sender's viewport, to scale its box when the window sizes differ.
@@ -136,22 +230,6 @@ export function resolveAnchor(
   approx: { x: number; y: number },
   { sender, searchDepth = SEARCH_DEPTH }: { sender?: Viewport; searchDepth?: number } = {},
 ): { element: Element; x: number; y: number } | null {
-  let candidate = elementAt(approx.x, approx.y);
-
-  for (let depth = 0; candidate && depth <= searchDepth; depth++) {
-    if (sameChain(identityChain(candidate), anchor.chain)) {
-      const rect = candidate.getBoundingClientRect();
-      // Same identity but elsewhere or another size: a different control, or fixed-pixel UI
-      // on a screen that scales differently. No other element up the chain can match.
-      if (anchor.rect && !sameBox(rect, anchor.rect, sender)) return null;
-      return {
-        element: candidate,
-        x: rect.left + anchor.rx * rect.width,
-        y: rect.top + anchor.ry * rect.height,
-      };
-    }
-    candidate = parentOf(candidate);
-  }
-
-  return null;
+  const match = matchAnchor(anchor, approx, { sender, searchDepth });
+  return match.found ? { element: match.element, x: match.x, y: match.y } : null;
 }

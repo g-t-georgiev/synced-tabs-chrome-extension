@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { anchorAt, isWithin, resolveAnchor } from "./element-anchor";
+import { anchorAt, isWithin, matchAnchor, resolveAnchor } from "./element-anchor";
 
 function rectOf(el: Element, left: number, top: number, width: number, height: number) {
   vi.spyOn(el, "getBoundingClientRect").mockReturnValue({ left, top, width, height } as DOMRect);
@@ -237,5 +237,83 @@ describe("element anchors: siblings and box (step 13b)", () => {
     stubHit(button);
 
     expect(resolveAnchor(legacy, { x: 50, y: 20 })?.element).toBe(button);
+  });
+});
+
+describe("matchAnchor: why a press doesn't match (step 13d)", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+    window.innerWidth = 1024;
+    window.innerHeight = 768;
+  });
+
+  function button(className: string) {
+    const el = document.createElement("div");
+    el.className = className;
+    document.body.append(el);
+    return el;
+  }
+
+  it("says when nothing is at the point", () => {
+    const sender = button("PlayButton_icon");
+    rectOf(sender, 0, 0, 10, 10);
+    const anchor = anchorAt(sender, 5, 5);
+    stubHit();
+
+    expect(matchAnchor(anchor, { x: 12.4, y: 7.6 })).toEqual({
+      found: false,
+      reason: "nothing at (12, 8)",
+    });
+  });
+
+  it("names the first identity difference and both elements", () => {
+    const sender = button("PlayButton_icon");
+    rectOf(sender, 0, 0, 10, 10);
+    const anchor = anchorAt(sender, 5, 5);
+    const glow = button("PlayButton_glow");
+    stubHit(glow);
+
+    const match = matchAnchor(anchor, { x: 5, y: 5 });
+
+    expect(match).toEqual({
+      found: false,
+      reason:
+        "identity differs at level 0, classes: [PlayButton_glow] vs [PlayButton_icon] " +
+        "(hit div.PlayButton_glow:nth-of-type(2), expected div.PlayButton_icon:nth-of-type(1))",
+    });
+  });
+
+  it("gives the expected and found boxes when only the box differs", () => {
+    const icon = button("PlayButton_icon");
+    rectOf(icon, 1180, 620, 97, 97); // in a 1280×720 window
+    const anchor = anchorAt(icon, 1228, 668);
+
+    window.innerWidth = 1920;
+    window.innerHeight = 1080;
+    rectOf(icon, 1748, 870, 120, 120); // the UI didn't grow by 1.5×
+    stubHit(icon);
+
+    expect(matchAnchor(anchor, { x: 1842, y: 1002 }, { sender: { w: 1280, h: 720 } })).toEqual({
+      found: false,
+      reason:
+        "box differs: expected 146×146 at (1770, 930), found 120×120 at (1748, 870) " +
+        "on div.PlayButton_icon:nth-of-type(1)",
+    });
+  });
+
+  it("returns the match like resolveAnchor when everything agrees", () => {
+    const icon = button("PlayButton_icon");
+    rectOf(icon, 100, 100, 50, 50);
+    const anchor = anchorAt(icon, 125, 125);
+    stubHit(icon);
+
+    expect(matchAnchor(anchor, { x: 125, y: 125 })).toEqual({
+      found: true,
+      element: icon,
+      x: 125,
+      y: 125,
+    });
   });
 });
