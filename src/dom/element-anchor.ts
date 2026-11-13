@@ -84,28 +84,65 @@ function sameChain(a: AnchorIdentity[], b: AnchorIdentity[]) {
   );
 }
 
-/** The sender's box, scaled to this viewport by the window-size ratio. */
-function expectedBox(sender: FieldRect, from: Viewport | undefined): FieldRect {
-  const sx = from ? window.innerWidth / from.w : 1;
-  const sy = from ? window.innerHeight / from.h : 1;
-  return {
-    left: sender.left * sx,
-    top: sender.top * sy,
-    width: sender.width * sx,
-    height: sender.height * sy,
-  };
+/** A box's size and centre, for logs: `171×169 centred at (2449, 1149)`. */
+function centredText(width: number, height: number, cx: number, cy: number) {
+  return `${Math.round(width)}×${Math.round(height)} centred at (${Math.round(cx)}, ${Math.round(cy)})`;
 }
 
-/** Whether `actual` is the `expected` box within the tolerance. */
-function sameBox(actual: FieldRect, expected: FieldRect) {
-  const tolX = Math.max(BOX_TOLERANCE_PX, expected.width * BOX_TOLERANCE_RATIO);
-  const tolY = Math.max(BOX_TOLERANCE_PX, expected.height * BOX_TOLERANCE_RATIO);
-  return (
-    Math.abs(actual.left - expected.left) <= tolX &&
-    Math.abs(actual.width - expected.width) <= tolX &&
-    Math.abs(actual.top - expected.top) <= tolY &&
-    Math.abs(actual.height - expected.height) <= tolY
-  );
+/**
+ * Whether `actual` is the sender's box as this window would show it, and (for logs) what was
+ * expected. Pages scale in different ways when the window's aspect ratio differs, so:
+ *
+ * - **size:** either stretched (each axis by its window ratio) or scaled uniformly by any
+ *   factor between the two ratios (±10%), keeping the aspect ratio;
+ * - **position:** the box centre at the same fraction of the window. A box that grows
+ *   uniformly from a corner-pinned spot moves its corner, not its centre.
+ *
+ * Tolerance: max(4px, 10% of the size), per axis.
+ */
+function checkBox(
+  actual: FieldRect,
+  sender: FieldRect,
+  from: Viewport | undefined,
+): { ok: boolean; expected: string } {
+  const sx = from ? window.innerWidth / from.w : 1;
+  const sy = from ? window.innerHeight / from.h : 1;
+  const tolX = Math.max(BOX_TOLERANCE_PX, actual.width * BOX_TOLERANCE_RATIO);
+  const tolY = Math.max(BOX_TOLERANCE_PX, actual.height * BOX_TOLERANCE_RATIO);
+
+  const cx = (sender.left + sender.width / 2) * sx;
+  const cy = (sender.top + sender.height / 2) * sy;
+  const centred =
+    Math.abs(actual.left + actual.width / 2 - cx) <= tolX &&
+    Math.abs(actual.top + actual.height / 2 - cy) <= tolY;
+
+  const stretched =
+    Math.abs(actual.width - sender.width * sx) <= tolX &&
+    Math.abs(actual.height - sender.height * sy) <= tolY;
+
+  const low = Math.min(sx, sy) * (1 - BOX_TOLERANCE_RATIO);
+  const high = Math.max(sx, sy) * (1 + BOX_TOLERANCE_RATIO);
+  const k = sender.width
+    ? actual.width / sender.width
+    : sender.height
+      ? actual.height / sender.height
+      : 1;
+  const uniform =
+    k >= low &&
+    k <= high &&
+    Math.abs(actual.width - sender.width * k) <= tolX &&
+    Math.abs(actual.height - sender.height * k) <= tolY;
+
+  const scale =
+    Math.abs(sx - sy) < 0.005
+      ? `×${sx.toFixed(2)}`
+      : `×${sx.toFixed(2)} wide, ×${sy.toFixed(2)} tall, or uniform ×${low.toFixed(2)}–${high.toFixed(2)}`;
+  return {
+    ok: centred && (stretched || uniform),
+    expected:
+      `${centredText(sender.width * sx, sender.height * sy, cx, cy)} ` +
+      `(sender ${Math.round(sender.width)}×${Math.round(sender.height)} ${scale})`,
+  };
 }
 
 /** Whether `el` is `ancestor` or inside it, also across shadow roots. */
@@ -130,8 +167,6 @@ export function anchorAt(target: Element, x: number, y: number): ElementAnchor {
 }
 
 const round = (value: number) => Math.round(value);
-const boxText = ({ left, top, width, height }: FieldRect) =>
-  `${round(width)}×${round(height)} at (${round(left)}, ${round(top)})`;
 
 /** A short CSS-like name for an element or identity: `div#id.class:nth-of-type(2)`. */
 function identityText(identity: FieldFingerprint & { index?: number }) {
@@ -190,12 +225,18 @@ export function matchAnchor(
       // Same identity but elsewhere or another size: a different control, or fixed-pixel UI
       // on a screen that scales differently. No other element up the chain can match.
       if (anchor.rect) {
-        const expected = expectedBox(anchor.rect, sender);
-        if (!sameBox(rect, expected)) {
+        const box = checkBox(rect, anchor.rect, sender);
+        if (!box.ok) {
+          const found = centredText(
+            rect.width,
+            rect.height,
+            rect.left + rect.width / 2,
+            rect.top + rect.height / 2,
+          );
           return {
             found: false,
             reason:
-              `box differs: expected ${boxText(expected)}, found ${boxText(rect)} ` +
+              `box differs: expected ${box.expected}, found ${found} ` +
               `on ${describeElement(candidate)}`,
           };
         }

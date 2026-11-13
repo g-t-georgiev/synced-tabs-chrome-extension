@@ -298,8 +298,8 @@ describe("matchAnchor: why a press doesn't match (step 13d)", () => {
     expect(matchAnchor(anchor, { x: 1842, y: 1002 }, { sender: { w: 1280, h: 720 } })).toEqual({
       found: false,
       reason:
-        "box differs: expected 146×146 at (1770, 930), found 120×120 at (1748, 870) " +
-        "on div.PlayButton_icon:nth-of-type(1)",
+        "box differs: expected 146×146 centred at (1843, 1003) (sender 97×97 ×1.50), " +
+        "found 120×120 centred at (1808, 930) on div.PlayButton_icon:nth-of-type(1)",
     });
   });
 
@@ -315,5 +315,96 @@ describe("matchAnchor: why a press doesn't match (step 13d)", () => {
       x: 125,
       y: 125,
     });
+  });
+});
+
+describe("box check: uniform scaling across aspect ratios (step 13e)", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+    window.innerWidth = 1024;
+    window.innerHeight = 768;
+  });
+
+  function playIcon() {
+    const el = document.createElement("div");
+    el.className = "PlayButton_icon__8KJx3";
+    document.body.append(el);
+    return el;
+  }
+
+  // The real case from the step 13d log: 1920×1031 → 2560×1271, the UI scaled by ~×1.2.
+  it("accepts a button the UI scaled uniformly when the aspect ratios differ", () => {
+    const icon = playIcon();
+    rectOf(icon, 1758.75, 861.45, 142.5, 141.1); // in the 1920×1031 window
+    const anchor = anchorAt(icon, 1830, 932);
+
+    window.innerWidth = 2560;
+    window.innerHeight = 1271;
+    rectOf(icon, 2363, 1064, 171, 169);
+    stubHit(icon);
+
+    const match = matchAnchor(anchor, { x: 2440, y: 1149 }, { sender: { w: 1920, h: 1031 } });
+    expect(match).toMatchObject({ found: true, element: icon });
+  });
+
+  it("accepts the same case the other way round", () => {
+    const icon = playIcon();
+    rectOf(icon, 2363, 1064, 171, 169); // in the 2560×1271 window
+    const anchor = anchorAt(icon, 2448, 1148);
+
+    window.innerWidth = 1920;
+    window.innerHeight = 1031;
+    rectOf(icon, 1758.75, 861.45, 142.5, 141.1);
+    stubHit(icon);
+
+    const match = matchAnchor(anchor, { x: 1836, y: 931 }, { sender: { w: 2560, h: 1271 } });
+    expect(match).toMatchObject({ found: true, element: icon });
+  });
+
+  it("still accepts a page that stretches each axis by its own ratio", () => {
+    const icon = playIcon();
+    rectOf(icon, 1758.75, 861.45, 142.5, 141.1);
+    const anchor = anchorAt(icon, 1830, 932);
+
+    window.innerWidth = 2560;
+    window.innerHeight = 1271;
+    rectOf(icon, 2345, 1062, 190, 174); // ×1.333 wide, ×1.233 tall
+    stubHit(icon);
+
+    expect(
+      matchAnchor(anchor, { x: 2440, y: 1149 }, { sender: { w: 1920, h: 1031 } }),
+    ).toMatchObject({ found: true });
+  });
+
+  it("rejects a uniform scale outside the window ratios, like fixed-pixel UI", () => {
+    const icon = playIcon();
+    rectOf(icon, 1758.75, 861.45, 142.5, 141.1);
+    const anchor = anchorAt(icon, 1830, 932);
+
+    window.innerWidth = 2560;
+    window.innerHeight = 1271;
+    rectOf(icon, 2369, 1078, 142.5, 141.1); // same pixels, centred where it should be
+    stubHit(icon);
+
+    expect(
+      matchAnchor(anchor, { x: 2440, y: 1149 }, { sender: { w: 1920, h: 1031 } }),
+    ).toMatchObject({ found: false });
+  });
+
+  it("rejects a uniformly scaled box whose centre moved", () => {
+    const icon = playIcon();
+    rectOf(icon, 1758.75, 861.45, 142.5, 141.1);
+    const anchor = anchorAt(icon, 1830, 932);
+
+    window.innerWidth = 2560;
+    window.innerHeight = 1271;
+    rectOf(icon, 2363, 1000, 171, 169); // 64px higher than expected
+    stubHit(icon);
+
+    expect(
+      matchAnchor(anchor, { x: 2440, y: 1149 }, { sender: { w: 1920, h: 1031 } }),
+    ).toMatchObject({ found: false, reason: expect.stringContaining("box differs") });
   });
 });
