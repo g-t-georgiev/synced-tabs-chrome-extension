@@ -53,6 +53,9 @@ export interface MessagePayload {
   inputType: string;
   data: string | null;
   state: string;
+  start: number;
+  end: number;
+  direction: "forward" | "backward" | "none";
 }
 
 /** A frame's viewport size in CSS px (`innerWidth` x `innerHeight`). */

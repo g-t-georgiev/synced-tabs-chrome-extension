@@ -30,7 +30,12 @@ function trusted<T extends Event>(event: T): T {
 
 function setup() {
   const transport = { broadcast: vi.fn(), onRemote: vi.fn() } satisfies MessageController;
-  const highlight = { show: vi.fn(), hide: vi.fn(), field: null } satisfies FieldHighlight;
+  const highlight = {
+    show: vi.fn(),
+    select: vi.fn(),
+    hide: vi.fn(),
+    field: null,
+  } satisfies FieldHighlight;
   const feature = createTextFocusSync({ transport, highlight });
   return { transport, highlight, feature };
 }

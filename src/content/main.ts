@@ -25,6 +25,7 @@ import {
   createPanelSync,
   createTextSync,
   createTextFocusSync,
+  createTextSelectionSync,
 } from "../features";
 
 export function main() {
@@ -50,8 +51,11 @@ export function main() {
   engine.register(createKeyboardSync({ transport, logger }));
   engine.register(createScrollSync({ transport }));
   engine.register(createTextSync({ transport }));
-  // Fields can live in any frame, so each frame draws its own ring over its own fields.
-  engine.register(createTextFocusSync({ transport, highlight: createFieldHighlight() }));
+  // Fields can live in any frame, so each frame draws its own ring, selection and caret
+  // over its own fields; focus and selection share one highlight.
+  const highlight = createFieldHighlight();
+  engine.register(createTextFocusSync({ transport, highlight }));
+  engine.register(createTextSelectionSync({ transport, highlight }));
   if (panel) engine.register(createPanelSync({ transport, panel }));
   // Listens right away; captures start once stored settings have loaded.
   void engine.start();

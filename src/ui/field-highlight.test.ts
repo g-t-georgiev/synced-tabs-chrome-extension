@@ -104,3 +104,96 @@ describe("createFieldHighlight", () => {
     expect(frames).toHaveLength(0);
   });
 });
+
+describe("createFieldHighlight: selection and caret", () => {
+  beforeEach(() => {
+    frames = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => frames.splice(0));
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    vi.restoreAllMocks();
+  });
+
+  function textField(value = "seed-123") {
+    const field = document.createElement("input");
+    field.type = "text";
+    field.value = value;
+    document.body.append(field);
+    rectOf(field, 100, 200, 150, 20);
+    return field;
+  }
+
+  function boxes() {
+    return [...ring().firstElementChild!.children].map((box) => (box as HTMLElement).style);
+  }
+
+  it("draws the measured selection inside the ring", () => {
+    const measure = vi.fn(() => [{ left: 4, top: 2, width: 40, height: 16 }]);
+    const highlight = createFieldHighlight({ measure });
+    const field = textField();
+
+    highlight.show(field);
+    highlight.select(0, 4);
+
+    expect(measure).toHaveBeenCalledWith(field, 0, 4);
+    expect(boxes()).toHaveLength(1);
+    expect(boxes()[0]).toMatchObject({ left: "4px", top: "2px", width: "40px", height: "16px" });
+    expect(boxes()[0]!.background).toContain("rgba(0, 255, 255, 0.3)");
+  });
+
+  it("draws an empty range as a solid caret", () => {
+    const highlight = createFieldHighlight({
+      measure: () => [{ left: 30, top: 2, width: 2, height: 16 }],
+    });
+    highlight.show(textField());
+
+    highlight.select(3, 3);
+
+    expect(boxes()[0]!.background).not.toContain("0.3");
+  });
+
+  it("measures again when the text changes, not on idle frames", () => {
+    const measure = vi.fn(() => [{ left: 0, top: 0, width: 10, height: 16 }]);
+    const highlight = createFieldHighlight({ measure });
+    const field = textField();
+    highlight.show(field);
+    highlight.select(0, 2);
+
+    nextFrame();
+    nextFrame();
+    expect(measure).toHaveBeenCalledTimes(1);
+
+    field.value = "other";
+    nextFrame();
+    expect(measure).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears the selection on hide and when another field is shown", () => {
+    const highlight = createFieldHighlight({
+      measure: () => [{ left: 0, top: 0, width: 10, height: 16 }],
+    });
+    const first = textField();
+    const second = textField("x");
+    highlight.show(first);
+    highlight.select(0, 2);
+
+    highlight.show(second);
+    expect(boxes()).toHaveLength(0);
+
+    highlight.select(0, 1);
+    highlight.hide();
+    expect(boxes()).toHaveLength(0);
+  });
+
+  it("ignores a selection when no field is outlined", () => {
+    const measure = vi.fn(() => []);
+    createFieldHighlight({ measure }).select(0, 1);
+    expect(measure).not.toHaveBeenCalled();
+  });
+});
