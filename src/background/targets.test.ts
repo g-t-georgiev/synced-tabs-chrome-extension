@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
+import { hostRules, parseTargetMatches } from "../shared/target-matches";
 import { isTargetUrl } from "./targets";
+
+/** Test hosts, independent of any local `.env`. */
+const HOSTS = hostRules(
+  parseTargetMatches(
+    "http://localhost/*, http://127.0.0.1/*, https://ci.example.test/*, https://*.preview.example/*",
+  ),
+);
 
 describe("isTargetUrl", () => {
   it.each([
@@ -8,9 +16,11 @@ describe("isTargetUrl", () => {
     "http://localhost:8081/",
     "https://localhost:5173/",
     "http://127.0.0.1:8080/",
-    "https://frontend-dev.octoplay.dev/games/branch-x/",
+    "https://ci.example.test/games/branch-x/",
+    "https://branch-1.preview.example/",
+    "https://preview.example/",
   ])("accepts %s", (url) => {
-    expect(isTargetUrl(url)).toBe(true);
+    expect(isTargetUrl(url, HOSTS)).toBe(true);
   });
 
   it.each([
@@ -18,14 +28,19 @@ describe("isTargetUrl", () => {
     "https://example.com/localhost/",
     "http://localhost.evil.example/",
     "http://evil-localhost/",
-    "https://frontend-dev.octoplay.dev.evil.example/",
-    "https://sub.frontend-dev.octoplay.dev/",
+    "https://ci.example.test.evil.example/",
+    "https://sub.ci.example.test/",
+    "https://evilpreview.example/",
     "chrome://extensions/",
     "file:///C:/localhost/index.html",
     "not a url",
     "",
     undefined,
   ])("rejects %s", (url) => {
-    expect(isTargetUrl(url)).toBe(false);
+    expect(isTargetUrl(url, HOSTS)).toBe(false);
+  });
+
+  it("defaults to the build's hosts, local dev servers when nothing is configured", () => {
+    expect(isTargetUrl("http://localhost:8080/")).toBe(true);
   });
 });

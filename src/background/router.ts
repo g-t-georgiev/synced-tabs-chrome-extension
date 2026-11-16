@@ -41,12 +41,17 @@ interface TabState {
  * animation frame for the ghost cursor) costs no `tabs.query`. When a tab has no content
  * script, injection is attempted at most once per page load, and never for cursor moves.
  */
-export function createRouter() {
+export function createRouter({
+  isTarget = isTargetUrl,
+}: {
+  /** Which tab URLs take part (defaults to the build's `VITE_TARGET_MATCHES`). */
+  isTarget?: (url: string | undefined) => boolean;
+} = {}) {
   const tabs: Map<number, TabState> = new Map();
 
   function track(tab: Pick<chrome.tabs.Tab, "id" | "url" | "windowId">) {
     if (tab.id === undefined) return;
-    if (isTargetUrl(tab.url)) tabs.set(tab.id, { injectAttempted: false, windowId: tab.windowId });
+    if (isTarget(tab.url)) tabs.set(tab.id, { injectAttempted: false, windowId: tab.windowId });
     else tabs.delete(tab.id);
   }
 

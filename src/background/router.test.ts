@@ -1,11 +1,18 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { ACTIONS, MESSAGE_TYPES } from "../shared/constants";
 import { installChromeMock } from "../test/chrome-mock";
+import { hostRules, parseTargetMatches } from "../shared/target-matches";
 import { createRouter } from "./router";
+import { isTargetUrl } from "./targets";
+
+/** Test hosts, independent of any local `.env`. */
+const TEST_HOSTS = hostRules(
+  parseTargetMatches("http://localhost/*, http://127.0.0.1/*, https://ci.example.test/*"),
+);
 
 const TABS = [
   { id: 1, url: "http://localhost:8080/" },
-  { id: 2, url: "https://frontend-dev.octoplay.dev/game/" },
+  { id: 2, url: "https://ci.example.test/game/" },
   { id: 3, url: "http://localhost:8081/" },
   { id: 4, url: "https://example.com/?next=localhost" },
   { id: 5, url: "chrome://extensions/" },
@@ -17,7 +24,7 @@ const fromTab = (id: number, frameId = 0) => ({ tab: { id } as chrome.tabs.Tab, 
 
 async function setup(tabs = TABS) {
   const chrome = installChromeMock({}, tabs);
-  const router = createRouter();
+  const router = createRouter({ isTarget: (url) => isTargetUrl(url, TEST_HOSTS) });
   await router.ready;
   return { chrome, router };
 }
@@ -167,7 +174,7 @@ describe("createRouter: Same Window Only", () => {
   // Window 1: a split view of tabs 1 and 2. Window 2: tab 3 on the other monitor.
   const WINDOWED_TABS = [
     { id: 1, windowId: 1, url: "http://localhost:8080/" },
-    { id: 2, windowId: 1, url: "https://frontend-dev.octoplay.dev/game/" },
+    { id: 2, windowId: 1, url: "https://ci.example.test/game/" },
     { id: 3, windowId: 2, url: "http://localhost:8081/" },
   ];
   const fromTabInWindow = (id: number, windowId: number) => ({
