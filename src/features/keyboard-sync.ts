@@ -14,6 +14,7 @@ import {
   rectCenterToRatio,
   buildKeyboardEventData,
   dispatchSyntheticKeyboardEvent,
+  performKeyDefault,
   viewportMatches,
 } from "../dom";
 
@@ -38,6 +39,8 @@ export function createKeyboardSync({
 }): Feature<KeyboardSyncKey, KeyboardSyncPayload> {
   /** Element each held key was dispatched to, keyed by `KeyboardEvent.code`. */
   const keyTargets: Map<string, Element> = new Map();
+  /** Held keys whose keydown the page cancelled: their keyup doesn't activate either. */
+  const cancelled: Set<string> = new Set();
 
   return {
     configKey: "syncKeyboard",
@@ -88,7 +91,14 @@ export function createKeyboardSync({
       else keyTargets.set(id, target);
 
       logger.execute(subType, `[${keyData.code}] on:`, target);
-      dispatchSyntheticKeyboardEvent(target, subType, keyData);
+      const proceed = dispatchSyntheticKeyboardEvent(target, subType, keyData);
+
+      // Synthetic keys have no default actions: do the browser's Enter/Space activation
+      // ourselves, unless the page cancelled this key (on its keydown or now).
+      if (subType === "keydown" && !proceed) cancelled.add(id);
+      const wasCancelled = cancelled.has(id);
+      if (subType === "keyup") cancelled.delete(id);
+      if (proceed && !wasCancelled) performKeyDefault(target, subType, keyData);
     },
   };
 }

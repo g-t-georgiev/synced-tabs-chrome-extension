@@ -164,3 +164,64 @@ describe("createKeyboardSync: window size mismatch", () => {
     expect(result).toBeUndefined(); // still applied
   });
 });
+
+describe("createKeyboardSync: Enter and Space default actions (step 17)", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  function keyEvent(subType: string, code: "Enter" | "Space") {
+    const message = keyMessage(subType, code);
+    return { ...message, keyData: { ...message.keyData, key: code === "Space" ? " " : "Enter" } };
+  }
+
+  it("presses the button a mirrored Enter lands on", () => {
+    const feature = setup();
+    const hit = stubHit();
+    const button = document.createElement("button");
+    document.body.append(button);
+    hit.current = button;
+    const clicked = vi.fn();
+    button.addEventListener("click", clicked);
+
+    feature.apply(keyEvent("keydown", "Enter"));
+    feature.apply(keyEvent("keyup", "Enter"));
+
+    expect(clicked).toHaveBeenCalledOnce();
+  });
+
+  it("leaves it alone when the page cancels the key", () => {
+    const feature = setup();
+    const hit = stubHit();
+    const button = document.createElement("button");
+    document.body.append(button);
+    hit.current = button;
+    button.addEventListener("keydown", (e) => e.preventDefault());
+    const clicked = vi.fn();
+    button.addEventListener("click", clicked);
+
+    feature.apply(keyEvent("keydown", "Enter"));
+
+    expect(clicked).not.toHaveBeenCalled();
+  });
+
+  it("toggles a checkbox on Space's release, unless its press was cancelled", () => {
+    const feature = setup();
+    const hit = stubHit();
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    document.body.append(checkbox);
+    hit.current = checkbox;
+
+    feature.apply(keyEvent("keydown", "Space"));
+    feature.apply(keyEvent("keyup", "Space"));
+    expect(checkbox.checked).toBe(true);
+
+    checkbox.addEventListener("keydown", (e) => e.preventDefault(), { once: true });
+    feature.apply(keyEvent("keydown", "Space"));
+    feature.apply(keyEvent("keyup", "Space"));
+    expect(checkbox.checked).toBe(true); // unchanged
+  });
+});

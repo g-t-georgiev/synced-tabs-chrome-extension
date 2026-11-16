@@ -8,3 +8,4 @@ export * from "./field-fingerprint";
 export * from "./frame-offset";
 export * from "./element-anchor";
 export * from "./text-geometry";
+export * from "./keyboard-activation";

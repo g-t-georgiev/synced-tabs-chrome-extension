@@ -254,6 +254,29 @@ export class Page {
     })()`);
   }
 
+  /** A real (trusted) key press and release: "Enter", "Space", "Tab", ... */
+  async press(name) {
+    const keys = {
+      Enter: {
+        key: "Enter",
+        code: "Enter",
+        windowsVirtualKeyCode: 13,
+        text: String.fromCharCode(13),
+      },
+      Space: { key: " ", code: "Space", windowsVirtualKeyCode: 32, text: " " },
+      Tab: { key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 },
+    };
+    const k = keys[name];
+    if (!k) throw new Error(`Unknown key ${name}`);
+    await this.send("Input.dispatchKeyEvent", { type: "keyDown", ...k });
+    await this.send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key: k.key,
+      code: k.code,
+      windowsVirtualKeyCode: k.windowsVirtualKeyCode,
+    });
+  }
+
   /** Real (trusted) text input into the focused element. */
   async type(text) {
     await this.send("Input.insertText", { text });

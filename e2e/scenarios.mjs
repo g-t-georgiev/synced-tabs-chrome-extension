@@ -310,6 +310,101 @@ export const scenarios = [
   },
 
   {
+    name: "keys",
+    description: "A mirrored Enter presses a button and Space toggles a checkbox, like real keys.",
+    async run(ctx) {
+      const [sender, receiver] = await openPages(ctx, [{ newWindow: true }, { newWindow: true }]);
+      await sender.setSwitch(SWITCH.keyboard, true);
+      await sleep(300);
+
+      // The page has no controls for this, so add the same two to both tabs, same spot.
+      const addControls = `(() => {
+        const box = document.createElement("div");
+        box.id = "e2e-keys";
+        box.style.cssText = "position:fixed;left:40%;top:40%;z-index:2147483000;background:#fff;padding:8px";
+        box.innerHTML = '<button id="e2e-button" style="width:120px;height:32px">E2E</button>' +
+          '<input id="e2e-checkbox" type="checkbox" style="width:24px;height:24px">';
+        document.body.append(box);
+        window.__e2eClicks = 0;
+        box.querySelector("#e2e-button").addEventListener("click", () => window.__e2eClicks++);
+      })()`;
+      await sender.evaluate(addControls);
+      await receiver.evaluate(addControls);
+      const state = (page) =>
+        page.evaluate(
+          `({ clicks: window.__e2eClicks, checked: document.getElementById("e2e-checkbox").checked })`,
+        );
+
+      await sender.evaluate(`document.getElementById("e2e-button").focus()`);
+      await sender.press("Enter");
+      await sleep(800);
+      const afterEnter = { sender: await state(sender), receiver: await state(receiver) };
+      ctx.check(
+        "Enter pressed the button in the sending tab (the browser's own)",
+        afterEnter.sender.clicks === 1,
+        JSON.stringify(afterEnter.sender),
+      );
+      ctx.check(
+        "and in the other tab (performed by the extension)",
+        afterEnter.receiver.clicks === 1,
+        [
+          JSON.stringify(afterEnter.receiver),
+          ...receiver.logs.filter((line) => line.includes("Enter")).slice(-3),
+        ].join("\n"),
+      );
+
+      // Pages may claim Space for themselves (slot games spin on it): then the browser doesn't
+      // toggle the checkbox either, and the extension mustn't. Record what the page did.
+      await sender.evaluate(`(() => {
+        window.__e2eSpaceCancelled = null;
+        // Capture on window, read after every handler ran (the page's own included).
+        const onKey = (e) => {
+          if (e.key !== " ") return;
+          window.removeEventListener("keydown", onKey, true);
+          setTimeout(() => (window.__e2eSpaceCancelled = e.defaultPrevented));
+        };
+        window.addEventListener("keydown", onKey, true);
+      })()`);
+      await sender.evaluate(`document.getElementById("e2e-checkbox").focus()`);
+      await sender.press("Space");
+      await sleep(800);
+      const afterSpace = { sender: await state(sender), receiver: await state(receiver) };
+      const spaceCancelled = await sender.evaluate("window.__e2eSpaceCancelled");
+      if (spaceCancelled) {
+        // The page uses Space itself (it cancels the key), so the browser toggles nothing:
+        // the extension must not either.
+        ctx.note("the page cancels Space (it uses the key itself): checking that nothing toggles");
+        ctx.check(
+          "Space toggled nothing in the sending tab (the page cancelled it)",
+          !afterSpace.sender.checked,
+          JSON.stringify(afterSpace.sender),
+        );
+        ctx.check(
+          "nor in the other tab",
+          !afterSpace.receiver.checked,
+          JSON.stringify(afterSpace.receiver),
+        );
+      } else {
+        ctx.check(
+          "Space toggled the checkbox in the sending tab",
+          afterSpace.sender.checked,
+          `${JSON.stringify(afterSpace.sender)}; page cancelled Space: ${spaceCancelled}`,
+        );
+        ctx.check(
+          "and in the other tab",
+          afterSpace.receiver.checked,
+          JSON.stringify(afterSpace.receiver),
+        );
+      }
+      ctx.check(
+        "nothing was pressed twice",
+        afterSpace.receiver.clicks === 1,
+        JSON.stringify(afterSpace.receiver),
+      );
+    },
+  },
+
+  {
     name: "panel-position",
     description: "A dragged panel starts at the same place in tabs opened afterwards.",
     async run(ctx) {

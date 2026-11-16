@@ -99,14 +99,13 @@ function focusLikeNative(element: Element) {
   if (active instanceof HTMLElement && active !== document.body) active.blur();
 }
 
+/** Dispatches a mirrored key event; returns false when the page cancelled it. */
 export function dispatchSyntheticKeyboardEvent(
   element: Element,
   type: string,
   data: KeyboardEventInit,
-) {
-  if (!element) return;
-  const event = new KeyboardEvent(type, data);
-  element.dispatchEvent(event);
+): boolean {
+  return element.dispatchEvent(new KeyboardEvent(type, data));
 }
 
 export function buildKeyboardEventData(event: KeyboardEvent): KeyboardEventData {
