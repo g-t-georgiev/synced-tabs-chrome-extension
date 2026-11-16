@@ -36,7 +36,11 @@ export function main() {
   // Toasts render only in the top frame; child frames relay theirs to it.
   const notifier = isTop ? createNotifier() : createRelayNotifier();
   if (isTop) listenForRelayedNotices(notifier);
-  const transport = createTransport({ windowId, notifier });
+  const transport = createTransport({
+    windowId,
+    notifier,
+    scope: () => (config.state.sameWindowOnly ? "window" : undefined),
+  });
   // The panel lives in the top frame only.
   const panel = isTop ? createPanel({ windowId, config }) : null;
   const ui = panel ?? createNullUi();

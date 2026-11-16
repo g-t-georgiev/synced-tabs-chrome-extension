@@ -162,3 +162,54 @@ describe("createRouter", () => {
     expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
   });
 });
+
+describe("createRouter: Same Window Only", () => {
+  // Window 1: a split view of tabs 1 and 2. Window 2: tab 3 on the other monitor.
+  const WINDOWED_TABS = [
+    { id: 1, windowId: 1, url: "http://localhost:8080/" },
+    { id: 2, windowId: 1, url: "https://frontend-dev.octoplay.dev/game/" },
+    { id: 3, windowId: 2, url: "http://localhost:8081/" },
+  ];
+  const fromTabInWindow = (id: number, windowId: number) => ({
+    tab: { id, windowId } as chrome.tabs.Tab,
+    frameId: 0,
+  });
+
+  it("reaches every window by default", async () => {
+    const { router } = await setup(WINDOWED_TABS);
+
+    const results = await router.fanOut(click, fromTabInWindow(1, 1));
+
+    expect(results.map(({ tabId }) => tabId)).toEqual([2, 3]);
+  });
+
+  it("reaches only the sender's window with scope 'window'", async () => {
+    const { router } = await setup(WINDOWED_TABS);
+
+    const results = await router.fanOut({ ...click, scope: "window" }, fromTabInWindow(1, 1));
+
+    expect(results.map(({ tabId }) => tabId)).toEqual([2]);
+  });
+
+  it("follows a tab dragged into another window", async () => {
+    const { chrome, router } = await setup(WINDOWED_TABS);
+
+    chrome.tabs.onAttached.fire(3, { newWindowId: 1, newPosition: 2 });
+    const results = await router.fanOut({ ...click, scope: "window" }, fromTabInWindow(1, 1));
+
+    expect(results.map(({ tabId }) => tabId)).toEqual([2, 3]);
+  });
+
+  it("picks up the window of a tab that navigates to a target page", async () => {
+    const { chrome, router } = await setup(WINDOWED_TABS);
+
+    chrome.tabs.onUpdated.fire(9, { url: "http://localhost:8082/" } as chrome.tabs.OnUpdatedInfo, {
+      id: 9,
+      windowId: 1,
+      url: "http://localhost:8082/",
+    });
+    const results = await router.fanOut({ ...click, scope: "window" }, fromTabInWindow(1, 1));
+
+    expect(results.map(({ tabId }) => tabId)).toEqual([2, 9]);
+  });
+});

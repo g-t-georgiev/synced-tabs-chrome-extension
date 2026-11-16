@@ -70,6 +70,7 @@ export function installChromeMock(
       onUpdated: createEvent<[number, chrome.tabs.OnUpdatedInfo, Partial<chrome.tabs.Tab>]>(),
       onRemoved: createEvent<[number, chrome.tabs.OnRemovedInfo?]>(),
       onReplaced: createEvent<[number, number]>(),
+      onAttached: createEvent<[number, chrome.tabs.OnAttachedInfo]>(),
     },
     scripting: {
       executeScript: vi.fn(

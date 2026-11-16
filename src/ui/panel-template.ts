@@ -194,5 +194,12 @@ export function createPanelUIHTML({
       <input type="checkbox" id="sync-text-toggle_${windowId}" ${config.state.syncText ? "checked" : ""}>
       <span class="toggle-switch-slider"></span>
     </label>
+  </div>
+  <div class="row" title="Mirror only to tabs in this window (a split view is one window)">
+    <span>Same Window Only</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="sync-window-toggle_${windowId}" ${config.state.sameWindowOnly ? "checked" : ""}>
+      <span class="toggle-switch-slider"></span>
+    </label>
   </div>`;
 }

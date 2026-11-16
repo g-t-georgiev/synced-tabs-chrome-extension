@@ -215,3 +215,22 @@ describe("createTransport", () => {
     expect(chrome.runtime.onMessage.hasListeners()).toBe(false);
   });
 });
+
+describe("createTransport: Same Window Only", () => {
+  it("adds scope 'window' while the switch is on, and nothing otherwise", () => {
+    const chrome = installChromeMock();
+    let sameWindowOnly = false;
+    const transport = createTransport({
+      windowId: "me",
+      notifier: stubNotifier(),
+      scope: () => (sameWindowOnly ? "window" : undefined),
+    });
+
+    transport.broadcast({ type: "POINTER_EVENT" });
+    sameWindowOnly = true;
+    transport.broadcast({ type: "POINTER_EVENT" });
+
+    expect(chrome.runtime.sendMessage.mock.calls[0]![0]).not.toHaveProperty("scope");
+    expect(chrome.runtime.sendMessage.mock.calls[1]![0]).toMatchObject({ scope: "window" });
+  });
+});

@@ -149,6 +149,22 @@ describe("createPanel", () => {
     expect(document.getElementById("mirror-sync-panel")).not.toBeNull();
   });
 
+  it("has a Same Window Only switch that saves its setting", () => {
+    const config = fakeConfig();
+    const save = vi.fn(async () => {});
+    config.set = save;
+    createPanel({ windowId: "window-3", config });
+    const toggle = document
+      .getElementById("mirror-sync-panel")!
+      .shadowRoot!.querySelector<HTMLInputElement>('[id^="sync-window-toggle"]')!;
+
+    expect(toggle.checked).toBe(false); // off by default
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event("change"));
+
+    expect(save).toHaveBeenCalledWith("sameWindowOnly", true);
+  });
+
   it("is a PanelController", () => {
     const { panel } = mount();
     const controller: PanelController = panel;

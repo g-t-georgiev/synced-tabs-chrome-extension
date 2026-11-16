@@ -24,6 +24,8 @@ export const DEFAULT_CONFIG = {
   syncKeyboard: true,
   syncCursor: true,
   syncText: true,
+  /** Mirror only to tabs in the sender's own window (a split view is one window). */
+  sameWindowOnly: false,
 };
 
 /**

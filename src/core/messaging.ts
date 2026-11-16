@@ -16,9 +16,12 @@ function isContextInvalidated(err: unknown) {
 export function createTransport({
   windowId,
   notifier,
+  scope = () => undefined,
 }: {
   windowId: string;
   notifier: Notifier;
+  /** "window" to reach only tabs in this tab's window (the "Same Window Only" switch). */
+  scope?: () => "window" | undefined;
 }): MessageController {
   let contextLostAt = -Infinity;
 
@@ -54,6 +57,7 @@ export function createTransport({
       }
 
       const { report } = options;
+      const reach = scope();
       try {
         chrome.runtime
           .sendMessage({
@@ -64,6 +68,7 @@ export function createTransport({
             viewport: currentViewport(),
             // Asks the worker to collect each receiver's answer and send them back.
             ...(report ? { report: true } : {}),
+            ...(reach ? { scope: reach } : {}),
           })
           .then((answer: DeliveryReport | undefined) => {
             if (report) showDrops(answer, report);
