@@ -67,6 +67,10 @@ export function createTextSelectionSync({
 
       // At most one message per frame, with the latest range.
       const send = rAfThrottle(() => {
+        // Only the tab the user is working in sends. A mirrored focus() or value change in
+        // another tab also fires (trusted) selection changes, which must not travel back.
+        if (!document.hasFocus()) return;
+
         const field = deepActiveElement();
         if (!isSelectableField(field) || isOwnUi(field)) return;
 
@@ -93,27 +97,38 @@ export function createTextSelectionSync({
         });
       });
 
-      const onSelectionChange = () => send();
-      // Focusing a field again sends its range again, even if unchanged.
+      const sample = () => send();
+      // Focusing a field (also when its window regains focus) sends its current range,
+      // even if unchanged, so receivers show the caret without it having to move.
       const onFocus = () => {
         lastField = null;
         lastKey = "";
+        send();
       };
 
-      // Capture on document: `selectionchange` for inputs is fired at the input and doesn't
-      // bubble; `select` covers text selected inside inputs in older engines.
-      document.addEventListener("selectionchange", onSelectionChange, true);
-      window.addEventListener("select", onSelectionChange, true);
+      // `selectionchange` for inputs is fired at the input and doesn't bubble, hence capture
+      // on document. Chrome doesn't reliably report caret moves caused by typing, so the
+      // range is also read after edits, key releases and pointer releases; `select` covers
+      // text selected inside inputs in older engines. Unchanged ranges aren't sent twice.
+      const SAMPLED_EVENTS = ["select", "input", "keyup", "pointerup"] as const;
+      document.addEventListener("selectionchange", sample, true);
+      SAMPLED_EVENTS.forEach((type) => window.addEventListener(type, sample, true));
       window.addEventListener("focusin", onFocus, true);
       return () => {
-        document.removeEventListener("selectionchange", onSelectionChange, true);
-        window.removeEventListener("select", onSelectionChange, true);
+        document.removeEventListener("selectionchange", sample, true);
+        SAMPLED_EVENTS.forEach((type) => window.removeEventListener(type, sample, true));
         window.removeEventListener("focusin", onFocus, true);
         send.cancel();
       };
     },
 
     apply(message) {
+      // The user is working in this tab: never move their caret or draw over their field.
+      if (document.hasFocus()) {
+        highlight.hide();
+        return;
+      }
+
       const field = findIdenticalField(message);
       if (!isFound(field)) return field;
       if (!isSelectableField(field)) return;

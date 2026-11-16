@@ -46,8 +46,14 @@ export function createTextFocusSync({
       const onFocusChange = (event: FocusEvent) => {
         if (!event.isTrusted || isFromOwnUi(event)) return;
 
-        // The user is working in this tab now: its own focus ring takes over.
-        if (event.type === "focusin") highlight.hide();
+        // Chrome reports focus moved by code (a mirrored click's focus()) as trusted too, so
+        // only the tab the user is working in counts. Its native ring takes over from ours.
+        // Blur is sent regardless: it only removes rings (e.g. when this window is minimized).
+        const focused = document.hasFocus();
+        if (event.type === "focusin") {
+          if (!focused) return;
+          highlight.hide();
+        }
 
         const field = event.composedPath()[0];
         if (!isValueField(field)) return;
@@ -70,8 +76,9 @@ export function createTextFocusSync({
     },
 
     apply(message) {
-      // A blur clears the ring even if the field has moved since it was focused.
-      if (message.state !== "focus") {
+      // A blur clears the ring even if the field has moved since it was focused. And the tab
+      // the user is working in shows only the browser's own focus ring, never ours.
+      if (message.state !== "focus" || document.hasFocus()) {
         highlight.hide();
         return;
       }

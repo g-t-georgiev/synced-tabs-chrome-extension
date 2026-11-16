@@ -66,6 +66,11 @@ describe("createTextFocusSync", () => {
   });
 
   describe("sending", () => {
+    // The tab the user is working in.
+    beforeEach(() => {
+      vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    });
+
     it("broadcasts focus and blur of a text field, without asking for a report", () => {
       const { transport, feature } = setup();
       const stop = feature.capture();
@@ -144,6 +149,11 @@ describe("createTextFocusSync", () => {
   });
 
   describe("receiving", () => {
+    // Another tab, not the one the user is working in.
+    beforeEach(() => {
+      vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    });
+
     it("outlines the identical field on focus", () => {
       const { highlight, feature } = setup();
       const sender = seedField();
@@ -189,5 +199,56 @@ describe("createTextFocusSync", () => {
 
       expect(highlight.hide).toHaveBeenCalledOnce();
     });
+  });
+});
+
+describe("createTextFocusSync: only the tab being worked in counts", () => {
+  beforeEach(() => {
+    window.innerWidth = 1280;
+    window.innerHeight = 720;
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  it("doesn't send focus moved by code in a tab without focus (a mirrored click)", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    const { transport, highlight, feature } = setup();
+    const stop = feature.capture();
+    const field = seedField();
+
+    field.dispatchEvent(trusted(new FocusEvent("focusin", { bubbles: true, composed: true })));
+    stop();
+
+    expect(transport.broadcast).not.toHaveBeenCalled();
+    expect(highlight.hide).toHaveBeenCalledTimes(1); // only from stop()
+  });
+
+  it("still sends blur from a tab without focus, e.g. when its window is minimized", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    const { transport, feature } = setup();
+    const stop = feature.capture();
+    const field = seedField();
+
+    field.dispatchEvent(trusted(new FocusEvent("focusout", { bubbles: true, composed: true })));
+    stop();
+
+    expect(transport.broadcast).toHaveBeenCalledWith(expect.objectContaining({ state: "blur" }));
+  });
+
+  it("shows only the browser's ring in the tab being worked in", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const { highlight, feature } = setup();
+    const sender = seedField();
+    const field = seedField();
+    stubHit(field);
+
+    feature.apply(focusMessage("focus", sender));
+
+    expect(highlight.show).not.toHaveBeenCalled();
+    expect(highlight.hide).toHaveBeenCalled();
   });
 });

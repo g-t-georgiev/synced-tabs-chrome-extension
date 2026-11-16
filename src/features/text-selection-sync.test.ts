@@ -74,6 +74,11 @@ describe("createTextSelectionSync", () => {
   });
 
   describe("sending", () => {
+    // The tab the user is working in.
+    beforeEach(() => {
+      vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    });
+
     it("sends the focused field's range once per frame, and only when it changes", () => {
       const { transport, feature } = setup();
       const stop = feature.capture();
@@ -146,6 +151,11 @@ describe("createTextSelectionSync", () => {
   });
 
   describe("receiving", () => {
+    // Another tab, not the one the user is working in.
+    beforeEach(() => {
+      vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    });
+
     it("sets the range on the identical field and draws it", () => {
       const { highlight, feature } = setup();
       const sender = seedField();
@@ -184,5 +194,91 @@ describe("createTextSelectionSync", () => {
       });
       expect(highlight.select).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("createTextSelectionSync: only the tab being worked in counts", () => {
+  beforeEach(() => {
+    window.innerWidth = 1280;
+    window.innerHeight = 720;
+    frames = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => frames.splice(0));
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  it("doesn't send selection changes from a tab without focus", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    const { transport, feature } = setup();
+    const stop = feature.capture();
+    const field = seedField();
+    field.focus(); // a mirrored click's focus()
+
+    field.setSelectionRange(11, 11); // a mirrored value moved the caret to the end
+    selectionChanged();
+    nextFrame();
+    stop();
+
+    expect(transport.broadcast).not.toHaveBeenCalled();
+  });
+
+  it("sends the current range when a field gains focus", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const { transport, feature } = setup();
+    const stop = feature.capture();
+    const field = seedField();
+    field.setSelectionRange(4, 4);
+
+    field.focus(); // also when the window regains focus
+    nextFrame();
+    stop();
+
+    expect(transport.broadcast).toHaveBeenCalledOnce();
+    expect(transport.broadcast.mock.calls[0]![0]).toMatchObject({ start: 4, end: 4 });
+  });
+
+  it("reads the caret after typing even without a selectionchange", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const { transport, feature } = setup();
+    const stop = feature.capture();
+    const field = seedField();
+    field.focus();
+    nextFrame();
+
+    field.setSelectionRange(6, 6); // the caret after typing a character
+    field.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    nextFrame();
+    field.setSelectionRange(7, 7);
+    field.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, composed: true }));
+    nextFrame();
+    stop();
+
+    const carets = transport.broadcast.mock.calls.map(([payload]) => payload.start);
+    expect(carets.slice(-2)).toEqual([6, 7]);
+  });
+
+  it("never moves the caret of the field being typed in", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    const { highlight, feature } = setup();
+    const sender = seedField();
+    sender.remove();
+    const field = seedField();
+    hitOnly(field);
+    field.focus();
+    field.setSelectionRange(3, 3);
+
+    feature.apply(selectionMessage(sender, 0, 11));
+
+    expect([field.selectionStart, field.selectionEnd]).toEqual([3, 3]);
+    expect(highlight.select).not.toHaveBeenCalled();
+    expect(highlight.hide).toHaveBeenCalled();
   });
 });
