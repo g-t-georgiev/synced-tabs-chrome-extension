@@ -9,11 +9,15 @@ import { OWN_UI_ATTR } from "../dom";
 import { createPanelUICSS, createPanelUIHTML } from "./panel-template";
 import {
   fromEdgePosition,
-  loadPanelPosition,
-  savePanelPosition,
+  isEdgePosition,
   toEdgePosition,
   type EdgePosition,
 } from "./panel-position";
+
+/** Settings shown as switches: the boolean ones. */
+type SwitchKey = {
+  [K in keyof StateConfig]: StateConfig[K] extends boolean ? K : never;
+}[keyof StateConfig];
 
 const PULSE_MS = 150;
 const BADGE_FLASH_MS = 200;
@@ -32,6 +36,7 @@ export function createPanel({
     cursorToggle: HTMLInputElement,
     textToggle: HTMLInputElement,
     windowToggle: HTMLInputElement,
+    panelToggle: HTMLInputElement,
     badge: HTMLElement,
     grabHandle: HTMLElement,
     dragging = false,
@@ -56,13 +61,14 @@ export function createPanel({
 
   shadow.innerHTML = styles + html;
 
-  // Bind checkbox handlers to update chrome.storage
+  // Bind checkbox handlers to update the settings store
   mouseToggle = shadow.querySelector('[id^="sync-mouse-toggle"]')!;
   scrollToggle = shadow.querySelector('[id^="sync-scroll-toggle"]')!;
   keyToggle = shadow.querySelector('[id^="sync-key-toggle"]')!;
   cursorToggle = shadow.querySelector('[id^="sync-cursor-toggle"]')!;
   textToggle = shadow.querySelector('[id^="sync-text-toggle"]')!;
   windowToggle = shadow.querySelector('[id^="sync-window-toggle"]')!;
+  panelToggle = shadow.querySelector('[id^="sync-panel-toggle"]')!;
   badge = shadow.querySelector("#sync-extension-badge")!;
   grabHandle = shadow.querySelector(".drag-handle")!;
 
@@ -74,7 +80,7 @@ export function createPanel({
 
   // A function declaration, so it exists when `init()` runs straight away (the script was
   // injected into a page whose <body> already exists).
-  function onChange(key: keyof StateConfig) {
+  function onChange(key: SwitchKey) {
     return function (ev: Event) {
       const target = ev.target as HTMLInputElement;
       const value = target.checked;
@@ -86,8 +92,8 @@ export function createPanel({
     document.body.append(host);
     void restorePosition();
     window.addEventListener("resize", onResize);
-    // The panel gets its final size only once its contents are laid out (fonts, styles); a
-    // position kept from the bottom or right edge depends on that size, so apply it again.
+    // The panel gets its final size only once its contents are laid out (fonts, styles): keep
+    // it on screen once it has it.
     if (typeof ResizeObserver === "function") new ResizeObserver(onResize).observe(host);
 
     // Handle localStorage changes
@@ -97,6 +103,7 @@ export function createPanel({
     cursorToggle.addEventListener("change", onChange("syncCursor"));
     textToggle.addEventListener("change", onChange("syncText"));
     windowToggle.addEventListener("change", onChange("sameWindowOnly"));
+    panelToggle.addEventListener("change", onChange("syncPanel"));
 
     // Init dragging logic
     grabHandle.addEventListener("pointerdown", (ev: PointerEvent) => {
@@ -169,6 +176,7 @@ export function createPanel({
     if (cursorToggle) cursorToggle.checked = config.state.syncCursor;
     if (textToggle) textToggle.checked = config.state.syncText;
     if (windowToggle) windowToggle.checked = config.state.sameWindowOnly;
+    if (panelToggle) panelToggle.checked = config.state.syncPanel;
   }
   /** Handles dragging. */
   function draggingHandler(ev: PointerEvent) {
@@ -213,16 +221,20 @@ export function createPanel({
     );
   }
 
-  /** Remembers where the panel is now, for the next page load (in every tab). */
+  /** Remembers where the panel is now, for the next page load (in every tab, via the store). */
   function savePosition() {
     edgePosition = toEdgePosition(getPosition(), host.getBoundingClientRect(), viewport());
-    void savePanelPosition(edgePosition);
+    config.set("panelPosition", edgePosition).catch(() => {});
   }
 
   /** Puts the panel where it was last saved, unless the user is already dragging it. */
   async function restorePosition() {
-    const saved = await loadPanelPosition();
-    if (!saved || dragging) return;
+    // Read once, after stored settings load. A position saved later in another tab doesn't
+    // move this open panel (panels meant to move together follow drags); it applies on the
+    // next load.
+    await config.ready;
+    const saved: unknown = config.state.panelPosition;
+    if (!isEdgePosition(saved) || dragging) return;
     edgePosition = saved;
     setPosition(fromEdgePosition(saved, viewport()));
   }

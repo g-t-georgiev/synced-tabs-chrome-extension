@@ -1,21 +1,8 @@
-import type { PanelPosition } from "../shared/types";
+import type { EdgePosition, PanelPosition } from "../shared/types";
 
-/**
- * Where the panel sits, relative to the viewport edges nearest to it, so a panel kept near
- * the right edge stays there in a wider or narrower window instead of drifting with a fixed
- * `left`. Offsets are measured to the panel's top-left corner (for the right and bottom
- * edges too), so the position doesn't depend on the panel's size, which changes while its
- * fonts load.
- */
-export interface EdgePosition {
-  x: { edge: "left" | "right"; offset: number };
-  y: { edge: "top" | "bottom"; offset: number };
-}
+export type { EdgePosition };
 
 type Size = { width: number; height: number };
-
-/** Storage key: one position for all tabs (they show the same app). */
-export const PANEL_POSITION_KEY = "panelPosition";
 
 /** The edges nearest to the panel at `position` (with `panel` size), and the offsets. */
 export function toEdgePosition(position: PanelPosition, panel: Size, viewport: Size): EdgePosition {
@@ -50,24 +37,4 @@ export function isEdgePosition(value: unknown): value is EdgePosition {
     (v.y?.edge === "top" || v.y?.edge === "bottom") &&
     Number.isFinite(v.y.offset)
   );
-}
-
-/** The saved position, if any. Never throws (no extension context, storage errors). */
-export async function loadPanelPosition(): Promise<EdgePosition | undefined> {
-  try {
-    const stored = await chrome.storage.local.get([PANEL_POSITION_KEY]);
-    const value: unknown = stored[PANEL_POSITION_KEY];
-    return isEdgePosition(value) ? value : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Saves the position for the next page load, in every tab. Never throws. */
-export async function savePanelPosition(position: EdgePosition): Promise<void> {
-  try {
-    await chrome.storage.local.set({ [PANEL_POSITION_KEY]: position });
-  } catch {
-    // Extension reloaded or storage unavailable: the panel just starts top-right next time.
-  }
 }

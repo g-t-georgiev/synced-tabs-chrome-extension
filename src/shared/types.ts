@@ -136,6 +136,18 @@ export interface UIController {
   pulse(): void;
 }
 
+/**
+ * Where the panel sits, relative to the viewport edges nearest to it, so a panel kept near
+ * the right edge stays there in a wider or narrower window instead of drifting with a fixed
+ * `left`. Offsets are measured to the panel's top-left corner (for the right and bottom
+ * edges too), so the position doesn't depend on the panel's size, which changes while its
+ * fonts load.
+ */
+export interface EdgePosition {
+  x: { edge: "left" | "right"; offset: number };
+  y: { edge: "top" | "bottom"; offset: number };
+}
+
 /** Panel host position in viewport px. */
 export interface PanelPosition {
   left: number;

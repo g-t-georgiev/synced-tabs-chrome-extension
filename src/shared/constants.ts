@@ -1,4 +1,5 @@
 import { hostRules, parseTargetMatches, type HostRule } from "./target-matches";
+import type { EdgePosition } from "./types";
 
 export const ACTIONS = {
   BROADCAST: "BROADCAST_EVENT",
@@ -26,8 +27,15 @@ export const DEFAULT_CONFIG = {
   syncKeyboard: true,
   syncCursor: true,
   syncText: true,
+  /** Panels follow each other's drags (when their handles are at the same spot). */
+  syncPanel: true,
   /** Mirror only to tabs in the sender's own window (a split view is one window). */
   sameWindowOnly: false,
+  /**
+   * Where the panel was last left, for every tab: `null` until it's first dragged. Not a
+   * switch; read when a panel is created, written when a drag ends.
+   */
+  panelPosition: null as EdgePosition | null,
 };
 
 /**

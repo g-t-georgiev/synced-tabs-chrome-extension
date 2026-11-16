@@ -1,13 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { DEFAULT_CONFIG } from "../shared/constants";
 import type { PanelController, StateConfig, StateStore } from "../shared/types";
-import { installChromeMock } from "../test/chrome-mock";
 import { createPanel } from "./panel";
-import { PANEL_POSITION_KEY } from "./panel-position";
 
-function fakeConfig(): StateStore<StateConfig> {
+function fakeConfig(stored: Partial<StateConfig> = {}): StateStore<StateConfig> {
   return {
-    state: { ...DEFAULT_CONFIG },
+    state: { ...DEFAULT_CONFIG, ...stored },
     ready: Promise.resolve({ ...DEFAULT_CONFIG }),
     set: vi.fn(async () => {}),
     subscribe: vi.fn(() => () => true),
@@ -29,15 +27,15 @@ function stubRect(el: Element, left: number, top: number, width: number, height:
   } as DOMRect);
 }
 
-function mount() {
-  const panel = createPanel({ windowId: "window-1", config: fakeConfig() });
+function mount(config = fakeConfig()) {
+  const panel = createPanel({ windowId: "window-1", config });
   const host = document.getElementById("mirror-sync-panel")!;
   const shadow = host.shadowRoot!;
   const handle = shadow.querySelector<HTMLElement>(".drag-handle")!;
   // Panel 150x100 at (800, 10); the handle sticks out 5px up and left.
   stubRect(host, 800, 10, 150, 100);
   stubRect(handle, 795, 5, 10, 10);
-  return { panel, host, shadow, handle };
+  return { panel, host, shadow, handle, config };
 }
 
 function stubHit(shadow: ShadowRoot, hit: Element | null) {
@@ -174,7 +172,7 @@ describe("createPanel", () => {
   });
 });
 
-describe("createPanel: remembered position (step 16)", () => {
+describe("createPanel: remembered position (steps 16, 16b)", () => {
   beforeEach(() => {
     window.innerWidth = 1000;
     window.innerHeight = 600;
@@ -186,26 +184,37 @@ describe("createPanel: remembered position (step 16)", () => {
   });
 
   it("starts where it was saved, relative to the saved edges", async () => {
-    installChromeMock({
-      [PANEL_POSITION_KEY]: { x: { edge: "left", offset: 20 }, y: { edge: "bottom", offset: 130 } },
-    });
-    const { host } = mount();
+    const { host } = mount(
+      fakeConfig({
+        panelPosition: { x: { edge: "left", offset: 20 }, y: { edge: "bottom", offset: 130 } },
+      }),
+    );
 
     await vi.waitFor(() => expect(host.style.left).toBe("20px"));
     expect(host.style.top).toBe("470px"); // 600 - 130
   });
 
   it("stays top-right by default when nothing is saved", async () => {
-    installChromeMock();
     const { host } = mount();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(host.style.left).toBe("");
   });
 
-  it("saves the position, relative to the nearest edges, when a drag ends", () => {
-    const chrome = installChromeMock();
-    const { handle } = mount();
+  it("ignores a malformed saved position", async () => {
+    const { host } = mount(
+      fakeConfig({ panelPosition: { left: 5 } as unknown as StateConfig["panelPosition"] }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(host.style.left).toBe("");
+  });
+
+  it("saves the position in the store, relative to the nearest edges, when a drag ends", () => {
+    const config = fakeConfig();
+    const save = vi.fn(async () => {});
+    config.set = save;
+    const { handle } = mount(config);
 
     handle.dispatchEvent(
       new PointerEvent("pointerdown", { bubbles: true, composed: true, clientX: 800, clientY: 10 }),
@@ -214,21 +223,62 @@ describe("createPanel: remembered position (step 16)", () => {
 
     // The panel box is 150x100 at (800, 10) in a 1000x600 window: nearest the right edge,
     // its left side 200px from it.
-    expect(chrome.storage.local.set).toHaveBeenCalledWith({
-      [PANEL_POSITION_KEY]: { x: { edge: "right", offset: 200 }, y: { edge: "top", offset: 10 } },
+    expect(save).toHaveBeenCalledWith("panelPosition", {
+      x: { edge: "right", offset: 200 },
+      y: { edge: "top", offset: 10 },
     });
   });
 
   it("keeps a saved position at its edge when the window is resized", async () => {
-    installChromeMock({
-      [PANEL_POSITION_KEY]: { x: { edge: "right", offset: 200 }, y: { edge: "top", offset: 10 } },
-    });
-    const { host } = mount();
+    const { host } = mount(
+      fakeConfig({
+        panelPosition: { x: { edge: "right", offset: 200 }, y: { edge: "top", offset: 10 } },
+      }),
+    );
     await vi.waitFor(() => expect(host.style.left).toBe("800px"));
 
     window.innerWidth = 1200;
     window.dispatchEvent(new Event("resize"));
 
     expect(host.style.left).toBe("1000px");
+  });
+
+  it("doesn't follow a position saved later in another tab", async () => {
+    const config = fakeConfig({
+      panelPosition: { x: { edge: "left", offset: 20 }, y: { edge: "top", offset: 30 } },
+    });
+    const { host } = mount(config);
+    await vi.waitFor(() => expect(host.style.left).toBe("20px"));
+
+    config.state.panelPosition = {
+      x: { edge: "left", offset: 400 },
+      y: { edge: "top", offset: 30 },
+    };
+    window.dispatchEvent(new Event("resize")); // even when something makes it re-place itself
+
+    expect(host.style.left).toBe("20px");
+  });
+});
+
+describe("createPanel: Panel Drag switch (step 16b)", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    vi.restoreAllMocks();
+  });
+
+  it("is on by default and saves its setting", () => {
+    const config = fakeConfig();
+    const save = vi.fn(async () => {});
+    config.set = save;
+    createPanel({ windowId: "window-4", config });
+    const toggle = document
+      .getElementById("mirror-sync-panel")!
+      .shadowRoot!.querySelector<HTMLInputElement>('[id^="sync-panel-toggle"]')!;
+
+    expect(toggle.checked).toBe(true);
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event("change"));
+
+    expect(save).toHaveBeenCalledWith("syncPanel", false);
   });
 });

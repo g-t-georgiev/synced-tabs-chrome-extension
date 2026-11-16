@@ -11,7 +11,7 @@ import type {
 import { MESSAGE_TYPES } from "../shared/constants";
 import { rAfThrottle, viewportMatches, viewportMismatch } from "../dom";
 
-type PanelSyncKey = Extract<StateConfigKey, "syncMouse">;
+type PanelSyncKey = Extract<StateConfigKey, "syncPanel">;
 interface PanelDragPayload {
   type: string;
   phase: PanelDragPhase;
@@ -31,7 +31,7 @@ const PANEL_MISS: ApplyResult = { status: "dropped", reason: "panel-miss" };
  * place; panels elsewhere stay put and the sender is told. Clicks on the panel are never
  * mirrored (toggles already sync through storage).
  *
- * Part of mouse sync: on and off with the "Mouse Events" toggle.
+ * On and off with the "Panel Drag" switch.
  */
 export function createPanelSync({
   transport,
@@ -44,7 +44,7 @@ export function createPanelSync({
   let following = false;
 
   return {
-    configKey: "syncMouse",
+    configKey: "syncPanel",
     handles: [MESSAGE_TYPES.PANEL_DRAG],
     // A pulse per drag frame would just flicker; drops are reported to the sender instead.
     silent: true,

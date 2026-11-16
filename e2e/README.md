@@ -40,6 +40,7 @@ they are never inlined into the extension. The full URL is never printed, only i
 | `size-mismatch`   | The same click from a bigger window reaches a smaller one.                                                                                            |
 | `text`            | Typing into a text field (`E2E_TEXT_FIELD_SELECTOR`) is mirrored; the ghost focus ring and selection show only in the other window.                   |
 | `panel-position`  | A panel dragged by its handle starts at the same place in tabs opened afterwards, and at the same distance from its nearest edges in a bigger window. |
+| `panel-drag`      | Dragging the panel moves the other window's panel too (same spot), and not with the "Panel Drag" switch off.                                          |
 | `same-window`     | With "Same Window Only", a click reaches a tab in the sender's window, not one in another window; with it off, both.                                  |
 
 Each scenario opens fresh tabs and closes them afterwards. A failed check prints details

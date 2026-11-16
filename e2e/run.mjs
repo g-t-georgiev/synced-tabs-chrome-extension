@@ -64,11 +64,16 @@ try {
 
   for (const scenario of selected) {
     const checks = [];
+    const notes = [];
     const ctx = {
       browser,
       config,
       check(label, ok, detail = "") {
         checks.push({ label, ok: Boolean(ok), detail: String(detail ?? "") });
+      },
+      /** Something worth knowing that isn't a check (e.g. a setup step that needed help). */
+      note(text) {
+        notes.push(text);
       },
     };
 
@@ -100,6 +105,7 @@ try {
         for (const line of check.detail.split("\n").slice(0, 6)) console.log(`           ${line}`);
       }
     }
+    for (const note of notes) console.log(`      note ${note}`);
     if (error) console.log(`      error: ${error.message}`);
     await browser.closePages();
   }

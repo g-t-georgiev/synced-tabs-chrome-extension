@@ -1,13 +1,5 @@
-import { describe, expect, it, vi } from "vite-plus/test";
-import { installChromeMock } from "../test/chrome-mock";
-import {
-  PANEL_POSITION_KEY,
-  fromEdgePosition,
-  isEdgePosition,
-  loadPanelPosition,
-  savePanelPosition,
-  toEdgePosition,
-} from "./panel-position";
+import { describe, expect, it } from "vite-plus/test";
+import { fromEdgePosition, isEdgePosition, toEdgePosition } from "./panel-position";
 
 const panel = { width: 150, height: 100 };
 const wide = { width: 1920, height: 1080 };
@@ -52,30 +44,5 @@ describe("edge positions", () => {
       isEdgePosition({ x: { edge: "left", offset: NaN }, y: { edge: "top", offset: 2 } }),
     ).toBe(false);
     expect(isEdgePosition(null)).toBe(false);
-  });
-});
-
-describe("panel position storage", () => {
-  const saved = { x: { edge: "right", offset: 24 }, y: { edge: "bottom", offset: 40 } } as const;
-
-  it("saves for every tab and loads it back", async () => {
-    const chrome = installChromeMock();
-
-    await savePanelPosition(saved);
-    expect(chrome.storage.local.set).toHaveBeenCalledWith({ [PANEL_POSITION_KEY]: saved });
-    await expect(loadPanelPosition()).resolves.toEqual(saved);
-  });
-
-  it("ignores a malformed stored value", async () => {
-    installChromeMock({ [PANEL_POSITION_KEY]: { left: 5 } });
-
-    await expect(loadPanelPosition()).resolves.toBeUndefined();
-  });
-
-  it("never throws without an extension context", async () => {
-    vi.stubGlobal("chrome", undefined);
-
-    await expect(loadPanelPosition()).resolves.toBeUndefined();
-    await expect(savePanelPosition(saved)).resolves.toBeUndefined();
   });
 });

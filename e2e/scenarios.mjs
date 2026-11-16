@@ -13,6 +13,7 @@ const SWITCH = {
   keyboard: "sync-key-toggle",
   text: "sync-text-toggle",
   sameWindow: "sync-window-toggle",
+  panel: "sync-panel-toggle",
 };
 
 /** Lets the page finish its loading screen (until E2E_CLICK_TEXT shows) before any input. */
@@ -27,6 +28,24 @@ async function untilReady(ctx, page) {
   await sleep(ctx.config.settle);
 }
 
+/**
+ * Puts every tab's panel at the same spot, bottom-left, away from the page's own top-right
+ * controls. A position saved by an earlier scenario is restored once settings load and can
+ * land after the first move, so repeat until all panels agree.
+ */
+async function alignPanels(pages) {
+  const key = async (page) => {
+    const box = await page.panelBox();
+    return box && `${Math.round(box.left)},${Math.round(box.top)}`;
+  };
+  for (let attempt = 0; attempt < 10; attempt++) {
+    for (const page of pages) await page.movePanel({ left: 10, top: page.size.height - 200 });
+    await sleep(300);
+    const keys = await Promise.all(pages.map(key));
+    if (keys[0] && keys.every((k) => k === keys[0])) return;
+  }
+}
+
 /** Opens tabs, loads the page in each, and waits until the extension is running there. */
 async function openPages(ctx, specs) {
   const pages = [];
@@ -37,11 +56,10 @@ async function openPages(ctx, specs) {
     await page.waitFor("!!document.getElementById('mirror-sync-panel')", {
       what: "the extension panel",
     });
-    // Same place in every tab, away from the page's own top-right controls.
-    await page.movePanel({ left: 10, top: page.size.height - 200 });
     pages.push(page);
   }
   await untilReady(ctx, pages[0]);
+  await alignPanels(pages);
   await pages[0].focus();
   // One window in front: the first page is focused, the others aren't (see setExtensionFocus).
   for (const [index, page] of pages.entries()) await page.setExtensionFocus(index === 0);
@@ -69,7 +87,7 @@ export const scenarios = [
       const switches = await page.evaluate(
         "document.getElementById('mirror-sync-panel').shadowRoot.querySelectorAll('.toggle-switch input').length",
       );
-      ctx.check("panel shows its switches", switches >= 6, `${switches} switches`);
+      ctx.check("panel shows its switches", switches >= 7, `${switches} switches`);
       ctx.check("no page errors", page.errors.length === 0, page.errors.join("\n"));
     },
   },
@@ -155,6 +173,21 @@ export const scenarios = [
       const togglePoint = await sender.centerOf(toggle);
       if (!togglePoint) throw new Error(`No ${toggle} on the page`);
       await sender.click(togglePoint);
+      // Opening the receiver's panel by mirrored click is the click scenario's business; if it
+      // didn't open here, open it directly (a page-script click, which isn't mirrored).
+      const inView = `(() => { const r = (${laidOutField(textField)})()?.getBoundingClientRect(); return !!r && r.right <= innerWidth && r.left >= 0; })()`;
+      for (const page of [sender, receiver]) {
+        const open = await page.waitFor(inView, { timeout: 3000 }).then(
+          () => true,
+          () => false,
+        );
+        if (!open) {
+          await page.evaluate(`document.querySelector(${JSON.stringify(toggle)})?.click()`);
+          ctx.note(
+            `opened the panel directly in ${page === sender ? "the sender" : "the receiver"}`,
+          );
+        }
+      }
       // The fields sit further down the panel's own scrolling list: bring the first one into
       // view in both windows (setup, not under test). The panel animates open, so repeat
       // until the field is at the same spot in both, as mirroring requires.
@@ -301,6 +334,41 @@ export const scenarios = [
           ? `left ${Math.round(scaled.left)}, bottom gap ${Math.round(bottomNow)} (was ${Math.round(bottomBefore)})`
           : "no panel",
       );
+    },
+  },
+
+  {
+    name: "panel-drag",
+    description: "Dragging the panel moves the other window's panel too, unless Panel Drag is off.",
+    async run(ctx) {
+      // openPages puts both panels at the same spot, which following requires.
+      const [sender, receiver] = await openPages(ctx, [{ newWindow: true }, { newWindow: true }]);
+      await sender.setSwitch(SWITCH.panel, true);
+      await sleep(300);
+
+      const dragBy = async (dx) => {
+        const start = await sender.panelBox();
+        const before = await receiver.panelBox();
+        await sender.drag(start.handle, { x: start.handle.x + dx, y: start.handle.y - 60 });
+        await sleep(800);
+        const moved = await sender.panelBox();
+        const other = await receiver.panelBox();
+        return {
+          followed: Math.abs(other.left - moved.left) <= 2 && Math.abs(other.top - moved.top) <= 2,
+          stayed: Math.abs(other.left - before.left) <= 2 && Math.abs(other.top - before.top) <= 2,
+          detail: `sender ${Math.round(moved.left)},${Math.round(moved.top)}; other ${Math.round(other.left)},${Math.round(other.top)}`,
+        };
+      };
+
+      const on = await dragBy(200);
+      ctx.check("the other window's panel followed the drag", on.followed, on.detail);
+
+      await sender.setSwitch(SWITCH.panel, false);
+      await sleep(300);
+      const off = await dragBy(150);
+      ctx.check("with Panel Drag off, it stays put", off.stayed && !off.followed, off.detail);
+
+      await sender.setSwitch(SWITCH.panel, true);
     },
   },
 

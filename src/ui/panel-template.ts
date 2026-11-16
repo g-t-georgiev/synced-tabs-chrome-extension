@@ -195,6 +195,13 @@ export function createPanelUIHTML({
       <span class="toggle-switch-slider"></span>
     </label>
   </div>
+  <div class="row" title="Panels follow each other's drags when they're in the same place">
+    <span>Panel Drag</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="sync-panel-toggle_${windowId}" ${config.state.syncPanel ? "checked" : ""}>
+      <span class="toggle-switch-slider"></span>
+    </label>
+  </div>
   <div class="row" title="Mirror only to tabs in this window (a split view is one window)">
     <span>Same Window Only</span>
     <label class="toggle-switch">

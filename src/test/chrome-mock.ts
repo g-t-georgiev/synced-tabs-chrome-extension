@@ -28,7 +28,7 @@ export function installChromeMock(
   const chromeMock = {
     storage: {
       local: {
-        /** Callback form (the settings store) and promise form (the panel position). */
+        /** Callback form (what the settings store uses) and promise form. */
         get: vi.fn((keys: string[], callback?: (items: Record<string, unknown>) => void) => {
           const items: Record<string, unknown> = {};
           keys.forEach((key) => {
