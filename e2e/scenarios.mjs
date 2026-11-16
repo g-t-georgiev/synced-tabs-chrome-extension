@@ -278,6 +278,38 @@ export const scenarios = [
   },
 
   {
+    name: "toggle",
+    description:
+      "Clicking the page's toggle is mirrored even when the tabs hold different extension elements.",
+    async run(ctx) {
+      const { toggle } = ctx.config.selectors;
+      const [sender, receiver] = await openPages(ctx, [{ newWindow: true }, { newWindow: true }]);
+      await sender.setSwitch(SWITCH.mouse, true);
+      await sleep(300);
+      // Which of the extension's own elements exist differs per tab (a focus ring appears
+      // only where one was shown). Give the receiver an extra one at the top of <body>.
+      await receiver.evaluate(`(() => {
+        const extra = document.createElement("div");
+        extra.setAttribute("data-mirror-sync-ui", "");
+        document.body.prepend(extra);
+      })()`);
+
+      for (const round of ["open", "close"]) {
+        const point = await sender.centerOf(toggle);
+        if (!point) throw new Error(`No ${toggle} on the page`);
+        const lines = await pressAndCollect(sender, receiver, point);
+        const drop = lines.find((line) => line.startsWith("[SYNC DROPPED]"));
+        ctx.check(
+          `receiver applied the ${round} click`,
+          lines.some((line) => line.startsWith("[SYNC EXECUTE] click")),
+          drop ?? lines.join("\n"),
+        );
+        await sleep(800);
+      }
+    },
+  },
+
+  {
     name: "panel-position",
     description: "A dragged panel starts at the same place in tabs opened afterwards.",
     async run(ctx) {

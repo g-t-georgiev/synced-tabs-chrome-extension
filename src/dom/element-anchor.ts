@@ -1,12 +1,14 @@
 import type { Viewport } from "../shared/types";
-import { elementAt } from "./element-resolver";
+import { elementAt, isOwnUi } from "./element-resolver";
 import { fingerprint, sameField, type FieldFingerprint, type FieldRect } from "./field-fingerprint";
 
 /** One level of an anchor's identity chain. */
 export interface AnchorIdentity extends FieldFingerprint {
   /**
-   * Index among siblings with the same tag (`nth-of-type`, from 0), so identical rows built
-   * from the same markup (Tweakpane buttons, list items) don't match each other.
+   * Index among look-alike siblings (same tag and classes, from 0), so identical rows built
+   * from the same markup (Tweakpane buttons, list items) don't match each other. Siblings that
+   * look different, and the extension's own elements, don't count: they can differ between
+   * tabs without the element being a different one.
    */
   index: number;
 }
@@ -41,7 +43,14 @@ function parentOf(el: Element): Element | null {
   return root instanceof ShadowRoot ? root.host : null;
 }
 
-/** Index of `el` among its siblings (light DOM or shadow root) with the same tag. */
+/** Tag and classes: what makes two siblings look alike. */
+const lookAlike = (el: Element) => `${el.tagName} ${[...el.classList].sort().join(" ")}`;
+
+/**
+ * Index of `el` among its look-alike siblings (light DOM or shadow root). The extension's own
+ * elements are skipped: the panel, cursor, toasts and focus ring are added to the page, and
+ * which of them exist differs per tab (the ring only appears where one was shown).
+ */
 function indexOfType(el: Element): number {
   const siblings =
     el.parentNode instanceof Element || el.parentNode instanceof ShadowRoot
@@ -49,10 +58,11 @@ function indexOfType(el: Element): number {
       : null;
   if (!siblings) return 0;
 
+  const key = lookAlike(el);
   let index = 0;
   for (const sibling of siblings) {
     if (sibling === el) return index;
-    if (sibling.tagName === el.tagName) index += 1;
+    if (!isOwnUi(sibling) && lookAlike(sibling) === key) index += 1;
   }
   return index;
 }

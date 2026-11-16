@@ -281,7 +281,7 @@ describe("matchAnchor: why a press doesn't match (step 13d)", () => {
       found: false,
       reason:
         "identity differs at level 0, classes: [PlayButton_glow] vs [PlayButton_icon] " +
-        "(hit div.PlayButton_glow:nth-of-type(2), expected div.PlayButton_icon:nth-of-type(1))",
+        "(hit div.PlayButton_glow:nth-of-type(1), expected div.PlayButton_icon:nth-of-type(1))",
     });
   });
 
@@ -406,5 +406,61 @@ describe("box check: uniform scaling across aspect ratios (step 13e)", () => {
     expect(
       matchAnchor(anchor, { x: 2440, y: 1149 }, { sender: { w: 1920, h: 1031 } }),
     ).toMatchObject({ found: false, reason: expect.stringContaining("box differs") });
+  });
+});
+
+describe("element anchors: siblings that differ between tabs", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  /** <body> > <div.debug> > <div.tp-toggle-btn>, after `before` other body children. */
+  function debugToggle(before: Element[]) {
+    document.body.replaceChildren(...before);
+    const container = document.createElement("div");
+    container.className = "debug";
+    const toggle = document.createElement("div");
+    toggle.className = "tp-toggle-btn";
+    container.append(toggle);
+    document.body.append(container);
+    rectOf(toggle, 1200, 60, 80, 28);
+    return toggle;
+  }
+
+  function ownUi() {
+    const el = document.createElement("div");
+    el.setAttribute("data-mirror-sync-ui", "");
+    return el;
+  }
+
+  it("ignores the extension's own elements, which differ per tab (the real case)", () => {
+    // Sender: panel and cursor. Receiver: also a focus ring, created where one was shown.
+    const anchor = anchorAt(debugToggle([ownUi(), ownUi()]), 1240, 74);
+    const toggle = debugToggle([ownUi(), ownUi(), ownUi()]);
+    stubHit(toggle);
+
+    expect(resolveAnchor(anchor, { x: 1240, y: 74 })?.element).toBe(toggle);
+  });
+
+  it("ignores page siblings that look different", () => {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    const anchor = anchorAt(debugToggle([]), 1240, 74);
+    const toggle = debugToggle([toast]);
+    stubHit(toggle);
+
+    expect(resolveAnchor(anchor, { x: 1240, y: 74 })?.element).toBe(toggle);
+  });
+
+  it("still tells look-alike siblings apart", () => {
+    const twin = document.createElement("div");
+    twin.className = "debug";
+    const anchor = anchorAt(debugToggle([]), 1240, 74);
+    const toggle = debugToggle([twin]); // now the second div.debug
+    stubHit(toggle);
+
+    expect(resolveAnchor(anchor, { x: 1240, y: 74 })).toBeNull();
   });
 });
