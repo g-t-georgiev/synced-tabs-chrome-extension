@@ -158,6 +158,8 @@ export interface PanelController extends UIController {
   hitTest(x: number, y: number): PanelPart;
   getPosition(): PanelPosition;
   setPosition(position: PanelPosition): void;
+  /** Remembers the current position for the next page load (in every tab). */
+  savePosition(): void;
   /** Called for local drags only. Returns an unsubscribe function. */
   onDrag(listener: PanelDragListener): () => void;
 }

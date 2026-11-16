@@ -211,6 +211,49 @@ export class Page {
     });
   }
 
+  /** A real (trusted) mouse drag from one viewport point to another, in `steps` moves. */
+  async drag(from, to, steps = 8) {
+    await this.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...from });
+    await this.send("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      ...from,
+      button: "left",
+      buttons: 1,
+      clickCount: 1,
+    });
+    for (let i = 1; i <= steps; i++) {
+      const x = from.x + ((to.x - from.x) * i) / steps;
+      const y = from.y + ((to.y - from.y) * i) / steps;
+      await this.send("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button: "left",
+        buttons: 1,
+      });
+    }
+    await this.send("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      ...to,
+      button: "left",
+      buttons: 0,
+      clickCount: 1,
+    });
+  }
+
+  /** The extension panel's box, and the centre of its drag handle, in viewport px. */
+  async panelBox() {
+    return this.evaluate(`(() => {
+      const host = document.getElementById("mirror-sync-panel");
+      const handle = host?.shadowRoot?.querySelector(".drag-handle");
+      if (!host || !handle) return null;
+      const r = host.getBoundingClientRect();
+      const h = handle.getBoundingClientRect();
+      return { left: r.left, top: r.top, width: r.width, height: r.height,
+        handle: { x: h.left + h.width / 2, y: h.top + h.height / 2 } };
+    })()`);
+  }
+
   /** Real (trusted) text input into the focused element. */
   async type(text) {
     await this.send("Input.insertText", { text });

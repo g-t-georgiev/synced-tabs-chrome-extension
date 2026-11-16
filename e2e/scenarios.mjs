@@ -15,6 +15,18 @@ const SWITCH = {
   sameWindow: "sync-window-toggle",
 };
 
+/** Lets the page finish its loading screen (until E2E_CLICK_TEXT shows) before any input. */
+async function untilReady(ctx, page) {
+  const text = JSON.stringify(ctx.config.selectors.clickText);
+  await page
+    .waitFor(
+      `[...document.querySelectorAll("body *")].some((el) => (el.innerText || "").trim() === ${text})`,
+      { what: `${text} on the page` },
+    )
+    .catch(() => {});
+  await sleep(ctx.config.settle);
+}
+
 /** Opens tabs, loads the page in each, and waits until the extension is running there. */
 async function openPages(ctx, specs) {
   const pages = [];
@@ -29,14 +41,7 @@ async function openPages(ctx, specs) {
     await page.movePanel({ left: 10, top: page.size.height - 200 });
     pages.push(page);
   }
-  // Let the game finish its loading screen before anything is clicked.
-  await pages[0]
-    .waitFor(
-      `[...document.querySelectorAll("body *")].some((el) => (el.innerText || "").trim() === ${JSON.stringify(ctx.config.selectors.clickText)})`,
-      { what: `"${ctx.config.selectors.clickText}" on the page` },
-    )
-    .catch(() => {});
-  await sleep(ctx.config.settle);
+  await untilReady(ctx, pages[0]);
   await pages[0].focus();
   // One window in front: the first page is focused, the others aren't (see setExtensionFocus).
   for (const [index, page] of pages.entries()) await page.setExtensionFocus(index === 0);
@@ -151,14 +156,31 @@ export const scenarios = [
       if (!togglePoint) throw new Error(`No ${toggle} on the page`);
       await sender.click(togglePoint);
       // The fields sit further down the panel's own scrolling list: bring the first one into
-      // view the same way in both windows (setup, not under test).
-      for (const page of [sender, receiver]) {
-        await page.waitFor(`!!(${laidOutField(textField)})()`, {
-          what: `a ${textField} with a box`,
-        });
-        await page.evaluate(`(${laidOutField(textField)})().scrollIntoView({ block: "center" })`);
+      // view in both windows (setup, not under test). The panel animates open, so repeat
+      // until the field is at the same spot in both, as mirroring requires.
+      const fieldBox = (page) =>
+        page.evaluate(
+          `(() => { const r = (${laidOutField(textField)})()?.getBoundingClientRect(); return r && [r.left, r.top, r.width, r.height].map(Math.round).join(","); })()`,
+        );
+      let aligned = false;
+      for (let attempt = 0; attempt < 15 && !aligned; attempt++) {
+        for (const page of [sender, receiver]) {
+          await page.waitFor(`!!(${laidOutField(textField)})()`, {
+            what: `a ${textField} with a box`,
+          });
+          await page.evaluate(
+            `(${laidOutField(textField)})().scrollIntoView({ block: "center", behavior: "instant" })`,
+          );
+        }
+        await sleep(300);
+        const [a, b] = [await fieldBox(sender), await fieldBox(receiver)];
+        aligned = a !== null && a === b;
       }
-      await sleep(300);
+      if (!aligned) {
+        throw new Error(
+          `Setup: the text field isn't at the same spot in both windows (${await fieldBox(sender)} vs ${await fieldBox(receiver)})`,
+        );
+      }
       const field = await sender.waitFor(`(${fieldCenter(textField)})()`, {
         what: `a visible ${textField}`,
       });
@@ -223,6 +245,66 @@ export const scenarios = [
   },
 
   {
+    name: "panel-position",
+    description: "A dragged panel starts at the same place in tabs opened afterwards.",
+    async run(ctx) {
+      const first = await ctx.browser.newPage({ size: ctx.config.size });
+      await first.goto(ctx.config.url);
+      await first.waitForLog("[SYNC INITIALIZED]");
+      // Drag once the page has loaded, as a user would.
+      await untilReady(ctx, first);
+      const before = await first.panelBox();
+      if (!before) throw new Error("No extension panel on the page");
+
+      // Drag it by its handle to near the bottom-left corner.
+      const target = { x: 40, y: ctx.config.size.height - before.height - 40 };
+      await first.drag(before.handle, target);
+      const after = await first.panelBox();
+      const moved = Math.abs(after.left - before.left) > 50;
+      ctx.check(
+        "the panel moved with the drag",
+        moved,
+        `from ${Math.round(before.left)},${Math.round(before.top)} to ${Math.round(after.left)},${Math.round(after.top)}`,
+      );
+
+      // A new tab, same size: the panel should start where it was left.
+      const second = await ctx.browser.newPage({ size: ctx.config.size });
+      await second.goto(ctx.config.url);
+      await second.waitForLog("[SYNC INITIALIZED]");
+      const restored = await settledPanelBox(second);
+      const same =
+        restored &&
+        Math.abs(restored.left - after.left) <= 2 &&
+        Math.abs(restored.top - after.top) <= 2;
+      ctx.check(
+        "a new tab starts the panel at the saved place",
+        same,
+        restored
+          ? `at ${Math.round(restored.left)},${Math.round(restored.top)}, expected ${Math.round(after.left)},${Math.round(after.top)}`
+          : "not placed",
+      );
+
+      // A bigger window keeps it at the same distance from the left and bottom edges.
+      const big = { width: ctx.config.size.width + 320, height: ctx.config.size.height + 180 };
+      const third = await ctx.browser.newPage({ size: big });
+      await third.goto(ctx.config.url);
+      await third.waitForLog("[SYNC INITIALIZED]");
+      const scaled = await settledPanelBox(third);
+      const bottomBefore = ctx.config.size.height - (after.top + after.height);
+      const bottomNow = scaled && big.height - (scaled.top + scaled.height);
+      ctx.check(
+        "in a bigger window it keeps its distance to the nearest edges",
+        scaled &&
+          Math.abs(scaled.left - after.left) <= 2 &&
+          Math.abs(bottomNow - bottomBefore) <= 2,
+        scaled
+          ? `left ${Math.round(scaled.left)}, bottom gap ${Math.round(bottomNow)} (was ${Math.round(bottomBefore)})`
+          : "no panel",
+      );
+    },
+  },
+
+  {
     name: "same-window",
     description: "With Same Window Only, clicks reach tabs in the sender's window only.",
     async run(ctx) {
@@ -260,6 +342,29 @@ export const scenarios = [
     },
   },
 ];
+
+/**
+ * The panel's box once it has been placed and stopped moving: the saved position is applied
+ * when the panel is attached and again once its contents have their final size.
+ */
+async function settledPanelBox(page, { timeout = 10000 } = {}) {
+  const end = Date.now() + timeout;
+  let last = null;
+  let stable = 0;
+  while (Date.now() < end) {
+    const placed = await page.evaluate(
+      `document.getElementById("mirror-sync-panel")?.style.left !== ""`,
+    );
+    const box = placed ? await page.panelBox() : null;
+    const same =
+      box && last && Math.abs(box.left - last.left) < 0.5 && Math.abs(box.top - last.top) < 0.5;
+    stable = same ? stable + 1 : 0;
+    if (stable >= 3) return box;
+    last = box;
+    await sleep(150);
+  }
+  return last;
+}
 
 /** Code (as text) finding the first text field that has a box (in an open section). */
 function laidOutField(selector) {

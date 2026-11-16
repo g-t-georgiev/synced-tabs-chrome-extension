@@ -7,6 +7,13 @@ import type {
 } from "../shared/types";
 import { OWN_UI_ATTR } from "../dom";
 import { createPanelUICSS, createPanelUIHTML } from "./panel-template";
+import {
+  fromEdgePosition,
+  loadPanelPosition,
+  savePanelPosition,
+  toEdgePosition,
+  type EdgePosition,
+} from "./panel-position";
 
 const PULSE_MS = 150;
 const BADGE_FLASH_MS = 200;
@@ -36,6 +43,8 @@ export function createPanel({
     grabInsetLeft = 0;
 
   const dragListeners: Set<PanelDragListener> = new Set();
+  /** The last saved or restored position, kept relative to the nearest viewport edges. */
+  let edgePosition: EdgePosition | undefined;
 
   // BUILD IN-PAGE CONTROL PANEL
   host = document.createElement("div");
@@ -75,6 +84,11 @@ export function createPanel({
 
   function init() {
     document.body.append(host);
+    void restorePosition();
+    window.addEventListener("resize", onResize);
+    // The panel gets its final size only once its contents are laid out (fonts, styles); a
+    // position kept from the bottom or right edge depends on that size, so apply it again.
+    if (typeof ResizeObserver === "function") new ResizeObserver(onResize).observe(host);
 
     // Handle localStorage changes
     mouseToggle.addEventListener("change", onChange("syncMouse"));
@@ -178,7 +192,49 @@ export function createPanel({
     window.removeEventListener("pointercancel", dragEndedHandler);
     window.removeEventListener("pointermove", draggingHandler);
 
+    savePosition();
     emitDrag("end", { x: ev.clientX, y: ev.clientY });
+  }
+
+  const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
+
+  /** Moves the panel, clamped to this viewport like a local drag. */
+  function setPosition(position: PanelPosition) {
+    const bounds = host.getBoundingClientRect();
+    const handle = grabHandle.getBoundingClientRect();
+    placeAt(
+      clampPosition(
+        position.top,
+        position.left,
+        bounds,
+        handle.top - bounds.top,
+        handle.left - bounds.left,
+      ),
+    );
+  }
+
+  /** Remembers where the panel is now, for the next page load (in every tab). */
+  function savePosition() {
+    edgePosition = toEdgePosition(getPosition(), host.getBoundingClientRect(), viewport());
+    void savePanelPosition(edgePosition);
+  }
+
+  /** Puts the panel where it was last saved, unless the user is already dragging it. */
+  async function restorePosition() {
+    const saved = await loadPanelPosition();
+    if (!saved || dragging) return;
+    edgePosition = saved;
+    setPosition(fromEdgePosition(saved, viewport()));
+  }
+
+  /** Keeps the panel at its edges, and on screen, when the window is resized. */
+  function onResize() {
+    if (dragging) return;
+    if (edgePosition) {
+      setPosition(fromEdgePosition(edgePosition, viewport()));
+    } else if (host.style.left) {
+      setPosition(getPosition());
+    }
   }
 
   return {
@@ -192,20 +248,8 @@ export function createPanel({
       return "body";
     },
     getPosition,
-    /** Moves the panel, clamped to this viewport like a local drag. */
-    setPosition(position) {
-      const bounds = host.getBoundingClientRect();
-      const handle = grabHandle.getBoundingClientRect();
-      placeAt(
-        clampPosition(
-          position.top,
-          position.left,
-          bounds,
-          handle.top - bounds.top,
-          handle.left - bounds.left,
-        ),
-      );
-    },
+    setPosition,
+    savePosition,
     onDrag(listener) {
       dragListeners.add(listener);
       return () => dragListeners.delete(listener);

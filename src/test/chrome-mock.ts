@@ -28,12 +28,14 @@ export function installChromeMock(
   const chromeMock = {
     storage: {
       local: {
-        get: vi.fn((keys: string[], callback: (items: Record<string, unknown>) => void) => {
+        /** Callback form (the settings store) and promise form (the panel position). */
+        get: vi.fn((keys: string[], callback?: (items: Record<string, unknown>) => void) => {
           const items: Record<string, unknown> = {};
           keys.forEach((key) => {
             if (key in data) items[key] = data[key];
           });
-          queueMicrotask(() => callback(items));
+          if (callback) queueMicrotask(() => callback(items));
+          return Promise.resolve(items);
         }),
         set: vi.fn(async (items: Record<string, unknown>) => {
           Object.assign(data, items);

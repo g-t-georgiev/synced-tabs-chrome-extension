@@ -17,6 +17,7 @@ function fakePanel(partAtPoint: PanelPart = "handle") {
     hitTest: vi.fn(() => partAtPoint),
     getPosition: vi.fn(() => ({ left: 0, top: 0 })),
     setPosition: vi.fn(),
+    savePosition: vi.fn(),
     onDrag: vi.fn((listener: PanelDragListener) => {
       dragListener = listener;
       return () => (dragListener = undefined);
@@ -130,6 +131,18 @@ describe("createPanelSync", () => {
       feature.apply(dragMessage("move", 600, 90, { w: 1280, h: 577 }));
 
       expect(panel.setPosition).not.toHaveBeenCalled();
+    });
+
+    it("remembers the position after following a drag", () => {
+      const { panel } = fakePanel("handle");
+      const feature = createPanelSync({ transport: transport(), panel });
+
+      feature.apply(dragMessage("start", 800, 10));
+      feature.apply(dragMessage("move", 600, 90));
+      expect(panel.savePosition).not.toHaveBeenCalled();
+      feature.apply(dragMessage("end", 400, 170));
+
+      expect(panel.savePosition).toHaveBeenCalledOnce();
     });
 
     it("stops following after the drag ends", () => {

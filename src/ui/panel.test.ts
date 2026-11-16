@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { DEFAULT_CONFIG } from "../shared/constants";
 import type { PanelController, StateConfig, StateStore } from "../shared/types";
+import { installChromeMock } from "../test/chrome-mock";
 import { createPanel } from "./panel";
+import { PANEL_POSITION_KEY } from "./panel-position";
 
 function fakeConfig(): StateStore<StateConfig> {
   return {
@@ -169,5 +171,64 @@ describe("createPanel", () => {
     const { panel } = mount();
     const controller: PanelController = panel;
     expect(typeof controller.flash).toBe("function");
+  });
+});
+
+describe("createPanel: remembered position (step 16)", () => {
+  beforeEach(() => {
+    window.innerWidth = 1000;
+    window.innerHeight = 600;
+  });
+
+  afterEach(() => {
+    document.body.replaceChildren();
+    vi.restoreAllMocks();
+  });
+
+  it("starts where it was saved, relative to the saved edges", async () => {
+    installChromeMock({
+      [PANEL_POSITION_KEY]: { x: { edge: "left", offset: 20 }, y: { edge: "bottom", offset: 130 } },
+    });
+    const { host } = mount();
+
+    await vi.waitFor(() => expect(host.style.left).toBe("20px"));
+    expect(host.style.top).toBe("470px"); // 600 - 130
+  });
+
+  it("stays top-right by default when nothing is saved", async () => {
+    installChromeMock();
+    const { host } = mount();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(host.style.left).toBe("");
+  });
+
+  it("saves the position, relative to the nearest edges, when a drag ends", () => {
+    const chrome = installChromeMock();
+    const { handle } = mount();
+
+    handle.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true, composed: true, clientX: 800, clientY: 10 }),
+    );
+    window.dispatchEvent(new PointerEvent("pointerup", { clientX: 800, clientY: 10 }));
+
+    // The panel box is 150x100 at (800, 10) in a 1000x600 window: nearest the right edge,
+    // its left side 200px from it.
+    expect(chrome.storage.local.set).toHaveBeenCalledWith({
+      [PANEL_POSITION_KEY]: { x: { edge: "right", offset: 200 }, y: { edge: "top", offset: 10 } },
+    });
+  });
+
+  it("keeps a saved position at its edge when the window is resized", async () => {
+    installChromeMock({
+      [PANEL_POSITION_KEY]: { x: { edge: "right", offset: 200 }, y: { edge: "top", offset: 10 } },
+    });
+    const { host } = mount();
+    await vi.waitFor(() => expect(host.style.left).toBe("800px"));
+
+    window.innerWidth = 1200;
+    window.dispatchEvent(new Event("resize"));
+
+    expect(host.style.left).toBe("1000px");
   });
 });

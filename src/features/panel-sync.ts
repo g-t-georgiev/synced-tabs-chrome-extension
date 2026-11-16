@@ -98,7 +98,11 @@ export function createPanelSync({
       if (!following) return;
 
       panel.setPosition({ left: message.left, top: message.top });
-      if (message.phase === "end") following = false;
+      if (message.phase === "end") {
+        following = false;
+        // A followed drag moves this panel too: remember it like a local drag.
+        panel.savePosition();
+      }
     },
   };
 }
