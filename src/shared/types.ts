@@ -1,4 +1,5 @@
 import { DEFAULT_CONFIG, MESSAGE_TYPES } from "./constants";
+import type { FieldFingerprint, FieldRect } from "../dom/field-fingerprint";
 
 export type StateConfig = typeof DEFAULT_CONFIG;
 export type StateConfigKey = keyof StateConfig;
@@ -41,6 +42,26 @@ export interface MessagePayload {
   yRatio: number;
   xPoint: number;
   yPoint: number;
+  button: number;
+  buttons: number;
+  phase: PanelDragPhase;
+  left: number;
+  top: number;
+  value: string;
+  rect: FieldRect;
+  fingerprint: FieldFingerprint;
+  inputType: string;
+  data: string | null;
+  state: string;
+  start: number;
+  end: number;
+  direction: "forward" | "backward" | "none";
+}
+
+/** A frame's viewport size in CSS px (`innerWidth` x `innerHeight`). */
+export interface Viewport {
+  w: number;
+  h: number;
 }
 
 export type Message<T = MessagePayload> = T & {
@@ -48,10 +69,56 @@ export type Message<T = MessagePayload> = T & {
   originWindowId: string;
   /** Sender frame's position in its tab's frame tree (see `getFramePath`). */
   framePath: string;
+  /** Sender frame's viewport. Absent in messages from older builds. */
+  viewport?: Viewport;
 };
+
+/** What a receiving frame did with a mirrored message. */
+export type ApplyResult =
+  | { status: "applied" }
+  /** Not applied because the position can't be trusted; `viewport` is the receiver's. */
+  | {
+      status: "dropped";
+      reason: "viewport-mismatch";
+      viewport: Viewport;
+      /** Whether an element was compared (and differed), not just the window size. */
+      elementChecked?: boolean;
+    }
+  /** A panel drag whose handle isn't under the same point here, so this panel stays put. */
+  | { status: "dropped"; reason: "panel-miss" }
+  /** No identical text field at the same place here, so nothing was written. */
+  | { status: "dropped"; reason: "field-mismatch" }
+  /** Same window size, but the element at the point isn't the sender's element. */
+  | { status: "dropped"; reason: "element-mismatch" };
+
+/** What a receiver handler may answer: nothing, a result, or a result later. */
+export type RemoteResult = ApplyResult | void | Promise<ApplyResult | void>;
+
+export type DeliveryStatus = "delivered" | "unreachable";
+
+export interface TabDelivery {
+  tabId: number;
+  status: DeliveryStatus;
+  /** The receiving frame's answer, when it gave one. */
+  result?: ApplyResult;
+}
+
+/** The worker's answer to a broadcast sent with `report`. */
+export interface DeliveryReport {
+  results: TabDelivery[];
+}
+
+export interface BroadcastOptions {
+  /**
+   * Ask every receiver what it did and show drops as toasts in this tab. The value names
+   * what was mirrored, for the toast text: "Clicks" → "Clicks were not mirrored to …".
+   */
+  report?: string;
+}
+
 export interface MessageController {
-  broadcast<T>(payload: T): void;
-  onRemote<T>(handler: (message: Message<T>) => void): () => void;
+  broadcast<T>(payload: T, options?: BroadcastOptions): void;
+  onRemote<T>(handler: (message: Message<T>) => RemoteResult): () => void;
 }
 
 export interface Feature<TKey extends PropertyKey = StateConfigKey, TPayload = MessagePayload> {
@@ -59,12 +126,14 @@ export interface Feature<TKey extends PropertyKey = StateConfigKey, TPayload = M
   handles: MessageType[];
   silent: boolean;
   capture(): () => void;
-  apply(message: Message<TPayload>): any;
+  /** Returns a drop when the message can't be applied here; nothing means applied. */
+  apply(message: Message<TPayload>): ApplyResult | void;
 }
 
 export interface SyncEngine<State extends object = StateConfig> {
   register(feature: Feature<keyof State>): void;
-  start(): void;
+  /** Resolves once stored settings have loaded and captures are running. */
+  start(): Promise<void>;
   stop(): void;
 }
 
@@ -73,14 +142,90 @@ export interface UIController {
   pulse(): void;
 }
 
+/**
+ * Where the panel sits, relative to the viewport edges nearest to it, so a panel kept near
+ * the right edge stays there in a wider or narrower window instead of drifting with a fixed
+ * `left`. Offsets are measured to the panel's top-left corner (for the right and bottom
+ * edges too), so the position doesn't depend on the panel's size, which changes while its
+ * fonts load.
+ */
+export interface EdgePosition {
+  x: { edge: "left" | "right"; offset: number };
+  y: { edge: "top" | "bottom"; offset: number };
+}
+
+/** Panel host position in viewport px. */
+export interface PanelPosition {
+  left: number;
+  top: number;
+}
+
+export type PanelDragPhase = "start" | "move" | "end";
+
+export type PanelDragListener = (
+  phase: PanelDragPhase,
+  position: PanelPosition,
+  /** Pointer position in viewport px. */
+  point: { x: number; y: number },
+) => void;
+
+/** Part of the panel at a point: its drag handle, a toggle, anything else on it, or none. */
+export type PanelPart = "handle" | "toggle" | "body" | null;
+
+export interface PanelController extends UIController {
+  hitTest(x: number, y: number): PanelPart;
+  getPosition(): PanelPosition;
+  setPosition(position: PanelPosition): void;
+  /** Remembers the current position for the next page load (in every tab). */
+  savePosition(): void;
+  /** Called for local drags only. Returns an unsubscribe function. */
+  onDrag(listener: PanelDragListener): () => void;
+}
+
 export interface CursorController {
   moveTo(x: number, y: number): void;
+}
+
+export interface CursorRelayMessage {
+  action: string;
+  /** Path of the frame the point is relative to (see `getFramePath`). */
+  fromPath: string;
+  /** Point in that frame's viewport, px. */
+  x: number;
+  y: number;
 }
 
 export interface Logger {
   initialized(url: string): void;
   remote<T extends unknown>(message: T & { type: string; subType: string }): void;
   execute<T extends unknown[]>(label: string, ...details: T): void;
+  /** A received event that was not applied, with why (for diagnosing drops). */
+  dropped<T extends unknown[]>(label: string, reason: string, ...details: T): void;
+}
+
+export type NoticeLevel = "warning" | "error";
+
+export interface NoticeOptions {
+  /**
+   * Identifies a notice so repeats refresh one toast (with a repeat count) instead of
+   * stacking copies. Defaults to the level plus the text.
+   */
+  key?: string;
+  /** How long the toast stays up, from its latest refresh. */
+  durationMs?: number;
+}
+
+/** Shows transient toasts in the tab's top-level viewport, never in other tabs. */
+export interface Notifier {
+  warn(text: string, options?: NoticeOptions): void;
+  error(text: string, options?: NoticeOptions): void;
+}
+
+export interface NoticeMessage {
+  action: string;
+  level: NoticeLevel;
+  text: string;
+  options?: NoticeOptions;
 }
 
 export interface ScrollEcho {

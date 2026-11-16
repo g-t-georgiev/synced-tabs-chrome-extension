@@ -6,7 +6,11 @@ import type {
   UIController,
   Feature,
   Message,
+  ApplyResult,
+  RemoteResult,
 } from "../shared/types";
+
+const APPLIED: ApplyResult = { status: "applied" };
 
 export function createSyncEngine<State extends object>({
   config,
@@ -23,6 +27,10 @@ export function createSyncEngine<State extends object>({
   const features: Feature<keyof State>[] = [];
   const teardowns: (() => any)[] = [];
   const activeCaptures: Map<Feature<keyof State>, () => any> = new Map();
+  /** Remote messages that arrived before stored settings loaded, replayed in order. */
+  const early: Array<{ message: Message; answer: (result: ApplyResult | void) => void }> = [];
+  let loaded = false;
+  let running = false;
 
   function syncCaptures(state: State) {
     for (const feature of features) {
@@ -38,14 +46,20 @@ export function createSyncEngine<State extends object>({
     }
   }
 
-  function handleRemote(message: Message): void {
+  function receive(message: Message): RemoteResult {
+    if (loaded) return handleRemote(message);
+    return new Promise((answer) => early.push({ message, answer }));
+  }
+
+  /** Applies a remote message; the result is the receiver's answer to the sender. */
+  function handleRemote(message: Message): ApplyResult | void {
     const feature = routes.get(message.type);
     if (!feature) return;
 
     const enabled = Boolean(config.state[feature.configKey]);
 
     if (feature.silent) {
-      if (enabled) feature.apply(message);
+      if (enabled) return feature.apply(message) ?? APPLIED;
       return;
     }
 
@@ -54,8 +68,9 @@ export function createSyncEngine<State extends object>({
 
     if (!enabled) return;
 
-    ui.pulse();
-    feature.apply(message);
+    const result = feature.apply(message) ?? APPLIED;
+    if (result.status === "applied") ui.pulse();
+    return result;
   }
 
   return {
@@ -70,12 +85,28 @@ export function createSyncEngine<State extends object>({
       feature.handles.forEach((type) => routes.set(type, feature));
       features.push(feature);
     },
-    start() {
+    /**
+     * Listens for remote messages immediately (the background worker re-sends right after
+     * injecting the content script), but starts capturing only once stored settings have
+     * loaded, so a feature the user turned off never captures with its default. Messages
+     * received before then are applied, or dropped, under the loaded settings.
+     */
+    async start() {
+      running = true;
+      teardowns.push(transport.onRemote(receive));
+
+      await config.ready;
+      if (!running) return;
+
+      loaded = true;
+      early.splice(0).forEach(({ message, answer }) => answer(handleRemote(message)));
       syncCaptures(config.state);
       teardowns.push(config.subscribe(syncCaptures));
-      teardowns.push(transport.onRemote(handleRemote));
     },
     stop() {
+      running = false;
+      loaded = false;
+      early.splice(0).forEach(({ answer }) => answer());
       teardowns.splice(0).forEach((teardown) => teardown());
       activeCaptures.forEach((teardown) => teardown());
       activeCaptures.clear();

@@ -1,4 +1,10 @@
-import type { Feature, MessageController, ScrollEcho, StateConfigKey } from "../shared/types";
+import type {
+  Feature,
+  MessageController,
+  ScrollEcho,
+  StateConfigKey,
+  Viewport,
+} from "../shared/types";
 import { MESSAGE_TYPES } from "../shared/constants";
 import {
   elementAt,
@@ -9,6 +15,11 @@ import {
   scrollOffsetToRatio,
   findScrollableAncestor,
   afterFrames,
+  viewportMatches,
+  viewportMismatch,
+  anchorAt,
+  resolveAnchor,
+  type ElementAnchor,
 } from "../dom";
 
 type ScrollSyncKey = Extract<StateConfigKey, "syncScroll">;
@@ -19,9 +30,14 @@ interface ScrollSyncPayload {
   yRatio: number;
   xPoint: number;
   yPoint: number;
+  viewport?: Viewport;
+  /** The inner container, for receivers whose window size differs. */
+  anchor?: ElementAnchor;
 }
 
 const EVENT_TYPE = "scroll";
+/** The element at a container's centre is usually some levels inside it. */
+const CONTAINER_SEARCH_DEPTH = 8;
 // Echo lifetime represented as rendered frames
 const ECHO_FRAMES = 3;
 
@@ -44,16 +60,28 @@ export function createScrollSync({
   // Scrolls received while the tab is hidden, replayed once it becomes visible.
   const deferred: Map<string, ScrollSyncPayload> = new Map();
 
-  function applyScroll(message: ScrollSyncPayload) {
-    let target: HTMLElement | undefined;
-    if (message.isDocument) {
-      target = document.documentElement;
-    } else {
-      const point = ratioToPoint(message.xPoint, message.yPoint);
-      target = elementAt(point.x, point.y);
-      target = findScrollableAncestor(target);
-    }
+  /** The inner container a message targets here, or null when it can't be trusted. */
+  function nestedTarget(message: ScrollSyncPayload): HTMLElement | null {
+    const point = ratioToPoint(message.xPoint, message.yPoint);
+    if (viewportMatches(message.viewport))
+      return findScrollableAncestor(elementAt(point.x, point.y));
 
+    // A different window size: use the container only if the same one is there.
+    const resolved = message.anchor
+      ? resolveAnchor(message.anchor, point, {
+          sender: message.viewport,
+          searchDepth: CONTAINER_SEARCH_DEPTH,
+        })
+      : null;
+    return resolved?.element instanceof HTMLElement ? resolved.element : null;
+  }
+
+  /** The element a message scrolls here: the page, or its inner container (or null). */
+  function scrollTarget(message: ScrollSyncPayload): HTMLElement | null {
+    return message.isDocument ? document.documentElement : nestedTarget(message);
+  }
+
+  function applyScroll(message: ScrollSyncPayload, target: HTMLElement) {
     const offset = ratioToScrollOffset(target, message.xRatio, message.yRatio);
     const prevTop = target.scrollTop;
     const prevLeft = target.scrollLeft;
@@ -75,7 +103,11 @@ export function createScrollSync({
     if (document.hidden || deferred.size === 0) return;
     const pending = [...deferred.values()];
     deferred.clear();
-    pending.forEach(applyScroll);
+    // Resolved now: the layout may have changed while the tab was hidden.
+    for (const message of pending) {
+      const target = scrollTarget(message);
+      if (target) applyScroll(message, target);
+    }
   }
 
   return {
@@ -93,16 +125,22 @@ export function createScrollSync({
         const ratio = scrollOffsetToRatio(el);
         const point = isDocument ? { x: 0.5, y: 0.5 } : elementCenterToRatio(el);
 
-        transport.broadcast({
-          type: MESSAGE_TYPES.SCROLL_EVENT,
-          // document/window scroll vs nested overflow container
-          isDocument,
-          xRatio: ratio.x,
-          yRatio: ratio.y,
-          // optional: help target nested scrollers
-          xPoint: point.x,
-          yPoint: point.y,
-        });
+        transport.broadcast(
+          {
+            type: MESSAGE_TYPES.SCROLL_EVENT,
+            // document/window scroll vs nested overflow container
+            isDocument,
+            xRatio: ratio.x,
+            yRatio: ratio.y,
+            // optional: help target nested scrollers
+            xPoint: point.x,
+            yPoint: point.y,
+            ...(isDocument ? {} : { anchor: containerAnchor(el) }),
+          },
+          // Page scrolls are ratio-based and always apply; inner ones are found by
+          // position and can be dropped, so only those are worth a report.
+          isDocument ? undefined : { report: "Scrolls inside panels" },
+        );
       });
 
       const onScroll = (event: Event) => {
@@ -127,6 +165,13 @@ export function createScrollSync({
     },
 
     apply(message) {
+      // Page scrolls are ratios of the scroll range and work at any size; an inner
+      // container is found by position, which a different window size moves, so it must
+      // be the same container (see `nestedTarget`).
+      // Resolved once here, and used below unless the tab is hidden.
+      const target = scrollTarget(message);
+      if (!target) return viewportMismatch(Boolean(message.anchor));
+
       if (document.hidden) {
         const key = deferKey(message);
         // Re-insert so replay order follows arrival order.
@@ -134,9 +179,15 @@ export function createScrollSync({
         deferred.set(key, message);
         return;
       }
-      applyScroll(message);
+      applyScroll(message, target);
     },
   };
+}
+
+/** Anchors an inner container at its centre. */
+function containerAnchor(el: Element): ElementAnchor {
+  const rect = el.getBoundingClientRect();
+  return anchorAt(el, rect.left + rect.width / 2, rect.top + rect.height / 2);
 }
 
 // Identifies the scroll container a message targets, so a hidden tab keeps the

@@ -56,3 +56,5 @@ Desktop.ini
 .idea/
 *.sublime-workspace
 *.code-workspace
+# End-to-end test output (screenshots)
+e2e/output/

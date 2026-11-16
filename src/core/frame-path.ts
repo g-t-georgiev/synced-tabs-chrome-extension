@@ -29,3 +29,16 @@ export function getFramePath(): string {
 
   return indices.join("/");
 }
+
+/**
+ * Splits a child frame's path into its parent's path and its index among the parent's
+ * frames: `"1/0"` → `{ parent: "1", index: 0 }`, `"2"` → `{ parent: "", index: 2 }`.
+ * Returns `null` for the top frame (`""`) or an unknown position.
+ */
+export function splitFramePath(path: string): { parent: string; index: number } | null {
+  if (!path) return null;
+  const cut = path.lastIndexOf("/");
+  const index = Number(path.slice(cut + 1));
+  if (!Number.isInteger(index) || index < 0) return null;
+  return { parent: cut === -1 ? "" : path.slice(0, cut), index };
+}

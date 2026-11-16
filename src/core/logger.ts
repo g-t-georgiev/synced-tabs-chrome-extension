@@ -27,5 +27,14 @@ export function createLogger(windowId: string): Logger {
     execute(label, ...details) {
       console.log(`[SYNC EXECUTE] ${label}`, ...details);
     },
+    dropped(label, reason, ...details) {
+      const color = "#ffaa00";
+      console.log(
+        `%c[SYNC DROPPED]%c ${label}: ${reason}`,
+        `color: ${color}; ${TAG_STYLE}`,
+        RESET,
+        ...details,
+      );
+    },
   };
 }

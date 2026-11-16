@@ -4,10 +4,13 @@
     "dev": "node scripts/build.mjs --watch",
     "build": "vp check && node scripts/build.mjs",
     "lint": "vp lint",
+    "lint:fix": "vp lint --fix",
     "fmt": "vp fmt",
+    "fmt:check": "vp fmt --check",
     "typecheck": "vp check",
     "test:suite": "vp test",
-    "prepare": "vp config --no-agent"
+    "prepare": "vp config --no-agent",
+    "test:e2e": "node scripts/build.mjs && node e2e/run.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.6",

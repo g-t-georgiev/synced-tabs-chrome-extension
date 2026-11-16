@@ -187,5 +187,26 @@ export function createPanelUIHTML({
       <input type="checkbox" id="sync-key-toggle_${windowId}" ${config.state.syncKeyboard ? "checked" : ""}>
       <span class="toggle-switch-slider"></span>
     </label>
+  </div>
+  <div class="row">
+    <span>Text Fields</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="sync-text-toggle_${windowId}" ${config.state.syncText ? "checked" : ""}>
+      <span class="toggle-switch-slider"></span>
+    </label>
+  </div>
+  <div class="row" title="Panels follow each other's drags when they're in the same place">
+    <span>Panel Drag</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="sync-panel-toggle_${windowId}" ${config.state.syncPanel ? "checked" : ""}>
+      <span class="toggle-switch-slider"></span>
+    </label>
+  </div>
+  <div class="row" title="Mirror only to tabs in this window (a split view is one window)">
+    <span>Same Window Only</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="sync-window-toggle_${windowId}" ${config.state.sameWindowOnly ? "checked" : ""}>
+      <span class="toggle-switch-slider"></span>
+    </label>
   </div>`;
 }

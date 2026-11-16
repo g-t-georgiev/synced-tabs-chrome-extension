@@ -17,18 +17,25 @@ function createEvent<Args extends unknown[]>() {
  * Stubs the subset of the `chrome` API the extension uses and installs it as a global.
  * `storage.local` is backed by an in-memory record seeded from `stored`.
  */
-export function installChromeMock(stored: Record<string, unknown> = {}) {
+export function installChromeMock(
+  stored: Record<string, unknown> = {},
+  openTabs: Array<Partial<chrome.tabs.Tab>> = [],
+) {
   const data = { ...stored };
+  const onMessage =
+    createEvent<[any, chrome.runtime.MessageSender, (response?: unknown) => void]>();
 
   const chromeMock = {
     storage: {
       local: {
-        get: vi.fn((keys: string[], callback: (items: Record<string, unknown>) => void) => {
+        /** Callback form (what the settings store uses) and promise form. */
+        get: vi.fn((keys: string[], callback?: (items: Record<string, unknown>) => void) => {
           const items: Record<string, unknown> = {};
           keys.forEach((key) => {
             if (key in data) items[key] = data[key];
           });
-          queueMicrotask(() => callback(items));
+          if (callback) queueMicrotask(() => callback(items));
+          return Promise.resolve(items);
         }),
         set: vi.fn(async (items: Record<string, unknown>) => {
           Object.assign(data, items);
@@ -38,8 +45,39 @@ export function installChromeMock(stored: Record<string, unknown> = {}) {
         createEvent<[Record<string, { oldValue?: unknown; newValue?: unknown }>, string]>(),
     },
     runtime: {
-      sendMessage: vi.fn(async (_message: unknown) => undefined),
-      onMessage: createEvent<[any, chrome.runtime.MessageSender?]>(),
+      /** Real Chrome clears this once the extension context is invalidated. */
+      id: "test-extension" as string | undefined,
+      sendMessage: vi.fn(async (_message: unknown) => undefined as unknown),
+      onMessage: {
+        ...onMessage,
+        /** Like Chrome, always passes a sender and a `sendResponse` (a no-op by default). */
+        fire: (
+          message: any,
+          sender: chrome.runtime.MessageSender = {},
+          sendResponse: (response?: unknown) => void = () => {},
+        ) => onMessage.fire(message, sender, sendResponse),
+      },
+    },
+    tabs: {
+      query: vi.fn(async (_query: chrome.tabs.QueryInfo) => openTabs),
+      get: vi.fn(async (tabId: number) => {
+        const tab = openTabs.find((candidate) => candidate.id === tabId);
+        if (!tab) throw new Error(`No tab with id: ${tabId}`);
+        return tab;
+      }),
+      sendMessage: vi.fn(
+        async (_tabId: number, _message: unknown, _options?: chrome.tabs.MessageSendOptions) =>
+          undefined as unknown,
+      ),
+      onUpdated: createEvent<[number, chrome.tabs.OnUpdatedInfo, Partial<chrome.tabs.Tab>]>(),
+      onRemoved: createEvent<[number, chrome.tabs.OnRemovedInfo?]>(),
+      onReplaced: createEvent<[number, number]>(),
+      onAttached: createEvent<[number, chrome.tabs.OnAttachedInfo]>(),
+    },
+    scripting: {
+      executeScript: vi.fn(
+        async (_injection: chrome.scripting.ScriptInjection<unknown[], unknown>) => [],
+      ),
     },
   };
 

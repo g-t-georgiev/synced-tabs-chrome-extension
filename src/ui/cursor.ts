@@ -1,4 +1,5 @@
 import type { CursorController } from "../shared/types";
+import { OWN_UI_ATTR } from "../dom";
 
 type FadeTimeoutHandle = number | null;
 
@@ -7,6 +8,7 @@ const FADE_DELAY_MS = 800;
 /** Generate the ghost cursor DOM element. */
 export function createCursor(): CursorController {
   const host = document.createElement("div");
+  host.setAttribute(OWN_UI_ATTR, "");
   const shadow = host.attachShadow({ mode: "open" });
 
   let fadeHandle: FadeTimeoutHandle = null;
