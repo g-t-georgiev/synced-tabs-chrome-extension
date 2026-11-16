@@ -156,3 +156,25 @@ describe("createScrollSync: different window size, same container", () => {
     expect(inner.anchor).toMatchObject({ rx: 0.5, ry: 0.5 });
   });
 });
+
+describe("createScrollSync: one lookup per message", () => {
+  afterEach(() => {
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  it("resolves an inner container's target once", () => {
+    window.innerWidth = 1280;
+    window.innerHeight = 720;
+    const elementsFromPoint = vi.fn(() => [document.body]);
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: elementsFromPoint,
+    });
+    const transport = { broadcast: vi.fn(), onRemote: vi.fn() } satisfies MessageController;
+
+    createScrollSync({ transport }).apply(scrollMessage(false, { w: 1280, h: 720 }));
+
+    expect(elementsFromPoint).toHaveBeenCalledTimes(1);
+  });
+});

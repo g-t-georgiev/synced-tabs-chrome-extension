@@ -1,9 +1,10 @@
 import { TARGET_HOSTS } from "../shared/constants";
-import { matchesHost, type HostRule } from "../shared/target-matches";
+import { matchesUrl, type HostRule } from "../shared/target-matches";
 
 /**
- * Whether a tab URL belongs to a mirrored app: http(s) on a configured hostname, any port.
- * `hosts` defaults to the build's `VITE_TARGET_MATCHES`.
+ * Whether a tab URL belongs to a mirrored app: http(s), accepted by the configured patterns
+ * (scheme, host and port, like the manifest's matches). `hosts` defaults to the build's
+ * `VITE_TARGET_MATCHES`.
  */
 export function isTargetUrl(
   url: string | undefined,
@@ -12,8 +13,9 @@ export function isTargetUrl(
   if (!url) return false;
 
   try {
-    const { protocol, hostname } = new URL(url);
-    return (protocol === "http:" || protocol === "https:") && matchesHost(hostname, hosts);
+    const parsed = new URL(url);
+    const web = parsed.protocol === "http:" || parsed.protocol === "https:";
+    return web && matchesUrl(parsed, hosts);
   } catch {
     return false;
   }

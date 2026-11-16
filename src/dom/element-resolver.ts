@@ -42,7 +42,7 @@ export function closestHTMLElement(el: Element | null | undefined): HTMLElement 
 const SCROLLABLE_OVERFLOW = /(auto|scroll)/;
 
 /** Parent element, stepping out of a shadow root to its host. */
-function parentOf(el: Element): Element | null {
+export function parentOf(el: Element): Element | null {
   if (el.parentElement) return el.parentElement;
   const root = el.getRootNode();
   return root instanceof ShadowRoot ? root.host : null;

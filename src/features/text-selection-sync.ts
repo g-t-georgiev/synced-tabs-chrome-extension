@@ -49,12 +49,6 @@ export function createTextSelectionSync({
   transport: MessageController;
   highlight: FieldHighlight;
 }): Feature<TextSelectionKey, TextSelectionPayload> {
-  /**
-   * Ranges this tab set from a remote message, per field. Setting a range fires a (trusted)
-   * `selectionchange` too; seeing the same range once means it's that echo, not the user.
-   */
-  const applied: WeakMap<SelectableField, string> = new WeakMap();
-
   return {
     configKey: "syncText",
     handles: [MESSAGE_TYPES.TEXT_SELECTION],
@@ -79,10 +73,6 @@ export function createTextSelectionSync({
         const direction = field.selectionDirection ?? "none";
         const key = selectionKey(start, end, direction);
 
-        if (applied.get(field) === key) {
-          applied.delete(field); // our own range, set from another tab
-          return;
-        }
         if (field === lastField && key === lastKey) return;
         lastField = field;
         lastKey = key;
@@ -136,7 +126,6 @@ export function createTextSelectionSync({
       const length = field.value.length;
       const start = Math.max(0, Math.min(message.start, length));
       const end = Math.max(start, Math.min(message.end, length));
-      applied.set(field, selectionKey(start, end, message.direction));
       try {
         field.setSelectionRange(start, end, message.direction);
       } catch {

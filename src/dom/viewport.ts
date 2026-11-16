@@ -24,6 +24,11 @@ export function viewportMatches(sender: Viewport | undefined): boolean {
 }
 
 /** The answer for a message dropped because the viewports differ. */
-export function viewportMismatch(): ApplyResult {
-  return { status: "dropped", reason: "viewport-mismatch", viewport: currentViewport() };
+export function viewportMismatch(elementChecked = false): ApplyResult {
+  return {
+    status: "dropped",
+    reason: "viewport-mismatch",
+    viewport: currentViewport(),
+    ...(elementChecked ? { elementChecked } : {}),
+  };
 }

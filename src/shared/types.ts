@@ -77,7 +77,13 @@ export type Message<T = MessagePayload> = T & {
 export type ApplyResult =
   | { status: "applied" }
   /** Not applied because the position can't be trusted; `viewport` is the receiver's. */
-  | { status: "dropped"; reason: "viewport-mismatch"; viewport: Viewport }
+  | {
+      status: "dropped";
+      reason: "viewport-mismatch";
+      viewport: Viewport;
+      /** Whether an element was compared (and differed), not just the window size. */
+      elementChecked?: boolean;
+    }
   /** A panel drag whose handle isn't under the same point here, so this panel stays put. */
   | { status: "dropped"; reason: "panel-miss" }
   /** No identical text field at the same place here, so nothing was written. */

@@ -80,7 +80,7 @@ export function createPointerSync({
     let element: Element | null;
 
     if (message.anchor) {
-      const drop = sameSize ? ELEMENT_MISMATCH : viewportMismatch();
+      const drop = sameSize ? ELEMENT_MISMATCH : viewportMismatch(true);
       const match = matchAnchor(message.anchor, point, { sender: message.viewport });
       if (!match.found) return { dropped: drop, why: match.reason + sizes };
 

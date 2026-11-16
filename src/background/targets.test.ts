@@ -14,7 +14,7 @@ describe("isTargetUrl", () => {
     "http://localhost/",
     "http://localhost:8080/game?seed=1",
     "http://localhost:8081/",
-    "https://localhost:5173/",
+    "http://localhost:5173/",
     "http://127.0.0.1:8080/",
     "https://ci.example.test/games/branch-x/",
     "https://branch-1.preview.example/",
@@ -30,6 +30,9 @@ describe("isTargetUrl", () => {
     "http://evil-localhost/",
     "https://ci.example.test.evil.example/",
     "https://sub.ci.example.test/",
+    // The scheme counts: the pattern is http only, like the manifest's matches.
+    "https://localhost:5173/",
+    "http://ci.example.test/",
     "https://evilpreview.example/",
     "chrome://extensions/",
     "file:///C:/localhost/index.html",

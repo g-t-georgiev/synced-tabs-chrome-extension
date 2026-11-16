@@ -76,15 +76,12 @@ export function createScrollSync({
     return resolved?.element instanceof HTMLElement ? resolved.element : null;
   }
 
-  function applyScroll(message: ScrollSyncPayload) {
-    let target: HTMLElement | null;
-    if (message.isDocument) {
-      target = document.documentElement;
-    } else {
-      target = nestedTarget(message);
-      if (!target) return;
-    }
+  /** The element a message scrolls here: the page, or its inner container (or null). */
+  function scrollTarget(message: ScrollSyncPayload): HTMLElement | null {
+    return message.isDocument ? document.documentElement : nestedTarget(message);
+  }
 
+  function applyScroll(message: ScrollSyncPayload, target: HTMLElement) {
     const offset = ratioToScrollOffset(target, message.xRatio, message.yRatio);
     const prevTop = target.scrollTop;
     const prevLeft = target.scrollLeft;
@@ -106,7 +103,11 @@ export function createScrollSync({
     if (document.hidden || deferred.size === 0) return;
     const pending = [...deferred.values()];
     deferred.clear();
-    pending.forEach(applyScroll);
+    // Resolved now: the layout may have changed while the tab was hidden.
+    for (const message of pending) {
+      const target = scrollTarget(message);
+      if (target) applyScroll(message, target);
+    }
   }
 
   return {
@@ -167,7 +168,9 @@ export function createScrollSync({
       // Page scrolls are ratios of the scroll range and work at any size; an inner
       // container is found by position, which a different window size moves, so it must
       // be the same container (see `nestedTarget`).
-      if (!message.isDocument && !nestedTarget(message)) return viewportMismatch();
+      // Resolved once here, and used below unless the tab is hidden.
+      const target = scrollTarget(message);
+      if (!target) return viewportMismatch(Boolean(message.anchor));
 
       if (document.hidden) {
         const key = deferKey(message);
@@ -176,7 +179,7 @@ export function createScrollSync({
         deferred.set(key, message);
         return;
       }
-      applyScroll(message);
+      applyScroll(message, target);
     },
   };
 }

@@ -1,5 +1,5 @@
 import type { Viewport } from "../shared/types";
-import { elementAt, isOwnUi } from "./element-resolver";
+import { elementAt, isOwnUi, parentOf } from "./element-resolver";
 import { fingerprint, sameField, type FieldFingerprint, type FieldRect } from "./field-fingerprint";
 
 /** One level of an anchor's identity chain. */
@@ -36,12 +36,6 @@ const SEARCH_DEPTH = 3;
 /** Box tolerance: absorbs rounding and hover/press effects (`scale(1.05)`), not a neighbour. */
 const BOX_TOLERANCE_PX = 4;
 const BOX_TOLERANCE_RATIO = 0.1;
-
-function parentOf(el: Element): Element | null {
-  if (el.parentElement) return el.parentElement;
-  const root = el.getRootNode();
-  return root instanceof ShadowRoot ? root.host : null;
-}
 
 /** Tag and classes: what makes two siblings look alike. */
 const lookAlike = (el: Element) => `${el.tagName} ${[...el.classList].sort().join(" ")}`;

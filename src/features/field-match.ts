@@ -59,7 +59,7 @@ export function findIdenticalField(locator: FieldLocator): ValueField | ApplyRes
     !sameRect(fieldRect(field), rect, tolerance) ||
     !sameField(fingerprint(field), locator.fingerprint)
   ) {
-    return sameSize ? FIELD_MISMATCH : viewportMismatch();
+    return sameSize ? FIELD_MISMATCH : viewportMismatch(true);
   }
 
   return field;

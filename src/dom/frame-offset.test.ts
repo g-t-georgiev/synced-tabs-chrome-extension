@@ -37,3 +37,23 @@ describe("frameContentOffset", () => {
     expect(frameContentOffset(undefined, [])).toBeNull();
   });
 });
+
+describe("frameContentOffset: default search", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    vi.restoreAllMocks();
+  });
+
+  it("finds an iframe inside an open shadow root", () => {
+    const child = {} as Window;
+    const component = document.createElement("div");
+    document.body.append(component);
+    const host = fakeHost(child, 10, 20, {});
+    component.attachShadow({ mode: "open" }).append(host);
+    // Make the stand-in match the frame selector the search uses.
+    vi.spyOn(component.shadowRoot!, "querySelectorAll").mockImplementation(((selector: string) =>
+      selector === "iframe, frame" ? [host] : []) as never);
+
+    expect(frameContentOffset(child)).toEqual({ x: 12, y: 23 });
+  });
+});

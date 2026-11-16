@@ -4,10 +4,11 @@ import { describeDrops } from "./delivery-report";
 
 const here = { w: 1280, h: 720 };
 const applied: TabDelivery = { tabId: 1, status: "delivered", result: { status: "applied" } };
-const mismatch = (tabId: number, w: number, h: number): TabDelivery => ({
+/** A size-mismatch drop; by default one where an element was compared too (clicks). */
+const mismatch = (tabId: number, w: number, h: number, elementChecked = true): TabDelivery => ({
   tabId,
   status: "delivered",
-  result: { status: "dropped", reason: "viewport-mismatch", viewport: { w, h } },
+  result: { status: "dropped", reason: "viewport-mismatch", viewport: { w, h }, elementChecked },
 });
 
 describe("describeDrops", () => {
@@ -36,6 +37,18 @@ describe("describeDrops", () => {
 
     expect(notice!.text).toBe(
       "Clicks were not mirrored to 3 tabs: window size differs and the element there doesn't match (this tab 1280x720, other 1280x577, 1100x720).",
+    );
+  });
+
+  it("says only that the size differs when no element was compared (panel drags)", () => {
+    const [notice] = describeDrops(
+      { results: [mismatch(2, 1280, 577, false)] },
+      "Panel moves",
+      here,
+    );
+
+    expect(notice!.text).toBe(
+      "Panel moves were not mirrored to 1 tab: window size differs (this tab 1280x720, other 1280x577).",
     );
   });
 

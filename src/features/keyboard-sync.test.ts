@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { ACTIONS, MESSAGE_TYPES } from "../shared/constants";
 import type { KeyboardEventData, MessageController } from "../shared/types";
+import { anchorAt } from "../dom";
 import { createKeyboardSync } from "./keyboard-sync";
 
 function keyMessage(subType: string, code: string, repeat = false) {
@@ -172,9 +173,14 @@ describe("createKeyboardSync: Enter and Space default actions (step 17)", () => 
     vi.restoreAllMocks();
   });
 
-  function keyEvent(subType: string, code: "Enter" | "Space") {
+  /** A key message whose sender's key went to `sentTo` (its anchor), or to the page. */
+  function keyEvent(subType: string, code: "Enter" | "Space", sentTo?: Element) {
     const message = keyMessage(subType, code);
-    return { ...message, keyData: { ...message.keyData, key: code === "Space" ? " " : "Enter" } };
+    return {
+      ...message,
+      keyData: { ...message.keyData, key: code === "Space" ? " " : "Enter" },
+      ...(sentTo ? { anchor: anchorAt(sentTo, 0, 0) } : {}),
+    };
   }
 
   it("presses the button a mirrored Enter lands on", () => {
@@ -186,8 +192,8 @@ describe("createKeyboardSync: Enter and Space default actions (step 17)", () => 
     const clicked = vi.fn();
     button.addEventListener("click", clicked);
 
-    feature.apply(keyEvent("keydown", "Enter"));
-    feature.apply(keyEvent("keyup", "Enter"));
+    feature.apply(keyEvent("keydown", "Enter", button));
+    feature.apply(keyEvent("keyup", "Enter", button));
 
     expect(clicked).toHaveBeenCalledOnce();
   });
@@ -202,7 +208,7 @@ describe("createKeyboardSync: Enter and Space default actions (step 17)", () => 
     const clicked = vi.fn();
     button.addEventListener("click", clicked);
 
-    feature.apply(keyEvent("keydown", "Enter"));
+    feature.apply(keyEvent("keydown", "Enter", button));
 
     expect(clicked).not.toHaveBeenCalled();
   });
@@ -215,13 +221,98 @@ describe("createKeyboardSync: Enter and Space default actions (step 17)", () => 
     document.body.append(checkbox);
     hit.current = checkbox;
 
-    feature.apply(keyEvent("keydown", "Space"));
-    feature.apply(keyEvent("keyup", "Space"));
+    feature.apply(keyEvent("keydown", "Space", checkbox));
+    feature.apply(keyEvent("keyup", "Space", checkbox));
     expect(checkbox.checked).toBe(true);
 
     checkbox.addEventListener("keydown", (e) => e.preventDefault(), { once: true });
-    feature.apply(keyEvent("keydown", "Space"));
-    feature.apply(keyEvent("keyup", "Space"));
+    feature.apply(keyEvent("keydown", "Space", checkbox));
+    feature.apply(keyEvent("keyup", "Space", checkbox));
     expect(checkbox.checked).toBe(true); // unchanged
+  });
+});
+
+describe("createKeyboardSync: defaults only on the sender's key target (review fixes)", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    delete (document as Partial<Document>).elementsFromPoint;
+    vi.restoreAllMocks();
+  });
+
+  function enter(subType: string, extra: Record<string, unknown> = {}) {
+    const message = keyMessage(subType, "Enter");
+    return { ...message, keyData: { ...message.keyData, key: "Enter" }, ...extra };
+  }
+
+  function clickCounter(el: Element) {
+    const clicked = vi.fn();
+    el.addEventListener("click", clicked);
+    return clicked;
+  }
+
+  it("doesn't press a button that only happens to sit at the point (nothing focused there)", () => {
+    const feature = setup();
+    const hit = stubHit();
+    const button = document.createElement("button");
+    document.body.append(button);
+    hit.current = button;
+    const clicked = clickCounter(button);
+
+    feature.apply(enter("keydown")); // the sender's key went to the page: no anchor
+
+    expect(clicked).not.toHaveBeenCalled();
+  });
+
+  it("doesn't press a different element than the sender's", () => {
+    const feature = setup();
+    const hit = stubHit();
+    const sendersButton = document.createElement("button");
+    sendersButton.className = "spin";
+    const other = document.createElement("button");
+    other.className = "bet";
+    document.body.append(sendersButton, other);
+    const anchor = anchorAt(sendersButton, 0, 0);
+    hit.current = other;
+    const clicked = clickCounter(other);
+
+    feature.apply(enter("keydown", { anchor }));
+
+    expect(clicked).not.toHaveBeenCalled();
+  });
+
+  it("doesn't press the focused button when window sizes differ and it isn't the sender's", () => {
+    window.innerWidth = 1280;
+    window.innerHeight = 720;
+    const feature = setup();
+    stubHit();
+    const focused = document.createElement("button");
+    focused.className = "bet";
+    document.body.append(focused);
+    focused.focus();
+    const sendersField = document.createElement("input");
+    document.body.append(sendersField);
+    const anchor = anchorAt(sendersField, 0, 0);
+    sendersField.remove();
+    const clicked = clickCounter(focused);
+
+    feature.apply(enter("keydown", { anchor, viewport: { w: 1920, h: 1080 } }));
+
+    expect(clicked).not.toHaveBeenCalled();
+  });
+
+  it("isn't blocked by an earlier cancelled press whose keyup never arrived", () => {
+    const feature = setup();
+    const hit = stubHit();
+    const button = document.createElement("button");
+    document.body.append(button);
+    hit.current = button;
+    const anchor = anchorAt(button, 0, 0);
+    const clicked = clickCounter(button);
+
+    button.addEventListener("keydown", (e) => e.preventDefault(), { once: true });
+    feature.apply(enter("keydown", { anchor })); // cancelled; its keyup is lost
+    feature.apply(enter("keydown", { anchor })); // a fresh press, not cancelled
+
+    expect(clicked).toHaveBeenCalledOnce();
   });
 });
